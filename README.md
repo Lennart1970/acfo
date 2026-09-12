@@ -22,6 +22,10 @@ python3 acfo/scripts/review_week.py --input exact-inkoop.xlsx --week 2026-W37 --
 
 Zonder `--week` stopt het script met de weken in het bestand (exit 3). Het model mag GL/btw/bedrag niet zelf verzinnen.
 
+## Cursor skill — pack a SKILL.md zip
+
+[`.cursor/skills/pack-skill-zip/`](.cursor/skills/pack-skill-zip/) packages a skill folder for Claude.ai (`--target anthropic`, nested folder) or Copilot Studio (`--target copilot`, `SKILL.md` at the zip root). Invoke `/pack-skill-zip`.
+
 ## Tests
 
 ```bash
