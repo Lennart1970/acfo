@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = Path(__file__).resolve().parent
 SKILL = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht"
-ZIP_PATH = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht.zip"
+ZIP_PATH = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht-v2.zip"
 FILES = (
     "confidence_core.py",
     "excel_transactions.py",

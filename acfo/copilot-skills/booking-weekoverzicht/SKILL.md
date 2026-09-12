@@ -1,5 +1,5 @@
 ---
-name: booking-weekoverzicht
+name: booking-weekoverzicht-v2
 description: >
   Exact-inkoopboekingen van één week uit een geüploade Excel: weekoverzicht
   en Booking Confidence via sandbox-Python. Gebruik bij "review deze Excel",
@@ -127,6 +127,8 @@ Eerste boeking van een leverancier in het bestand heeft geen geschiedenis → me
 Exact wijzigen, crediteur aanmaken, LedgerBotje/`financial_purchase_*` aanroepen, 122 tools verkennen, GL/btw/bedrag uit het hoofd schatten, scoren terwijl `parse.ok` false is.
 
 ## Bestanden in deze zip
+
+Skill-naam: `booking-weekoverzicht-v2` (nieuw t.o.v. de geweigerde `booking-weekoverzicht`-zip).
 
 Zip-root (zelfde layout als `booking-dagoverzicht`; Copilot weigert een extra map eromheen):
 
