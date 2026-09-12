@@ -22,6 +22,27 @@ Same Azure SQL (or a Fabric Warehouse) → Power BI semantic model with measures
 
 Better for “what was gross margin last quarter?” because measures live in the model. Needs Fabric F2+ or P1. Heavier than Azure SQL knowledge.
 
+## Can you use Supabase instead?
+
+Yes. Supabase is Postgres. Invantive already has a PostgreSQL driver, so Data Hub can load Exact Incremental tables there the same way it would load SQL Server:
+
+```sql
+create or replace table transaction_lines_incremental@pg
+as
+select *
+from   ExactOnlineREST.Incremental.TransactionLinesIncremental@eol
+```
+
+Connection is the Supabase **database** URI (`db.<project>.supabase.co`, port 5432, SSL, database `postgres`), not the anon REST key. Use a dedicated loader role (or the database password). Do not load through the `anon` key. Allow the Data Hub machine’s IP in Supabase network restrictions.
+
+For Copilot:
+
+- Copilot Studio has **no** native “Supabase knowledge” picker. Azure SQL still wins if you want one-click grounding.
+- You *can* add [Supabase MCP](https://supabase.com/docs/guides/getting-started/mcp) (`https://mcp.supabase.com/mcp`) as a Copilot Studio MCP tool. Supabase themselves say **do not give that MCP to end users**: it runs with *your* developer permissions, not the agent user’s. Fine for you in Cursor; wrong for a Teams agent.
+- The safe Copilot path on Supabase is **PostgREST as a tool**: expose a read-only view (`line_number > 0`), enable RLS, and add `https://<project>.supabase.co/rest/v1` as an OpenAPI / custom connector (or a small PostgREST MCP). The agent queries filtered ledger rows; it does not get `execute_sql` on the whole project.
+
+Use Supabase if you already live there (auth, apps, RLS). Use Azure SQL if the only consumer is Copilot Studio.
+
 ## What to skip
 
 | Approach | Why not |

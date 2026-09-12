@@ -44,6 +44,7 @@ Data Hub talks to one platform per connection unless you bundle them. Put `setti
 
 - `@eol` = Exact Online (`ExactOnlineAll`)
 - `@mysql` = your MySQL (`MySql`; install [Invantive’s MySQL driver](https://support.invantive.com/download-driver-mysql))
+- `@pg` = PostgreSQL / **Supabase** (`PostgreSql`; host `db.<project>.supabase.co`, SSL, database password — not the anon key)
 
 You still need an Exact **App Center** Client ID. Invantive can use their redirect `https://clientredirect.invantive.com`. Add `client-secret=...` and a TOTP secret if Exact requires 2FA.
 

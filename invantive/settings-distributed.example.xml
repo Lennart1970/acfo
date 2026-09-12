@@ -23,6 +23,14 @@
                 provider="MySql"
                 connectionString="Server=127.0.0.1;Port=3306;Database=acfo;UID=acfo;PWD=***MYSQL_PASSWORD***;SslMode=Preferred"
                 AllowConnectionStringRewrite="false"/>
+      <!-- Optional: Supabase is Postgres. Use the database password, not the anon key.
+           Host: db.<project-ref>.supabase.co  Database: postgres  SSL required. -->
+      <!--
+      <database alias="pg"
+                provider="PostgreSql"
+                connectionString="Host=db.***PROJECT***.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=***DB_PASSWORD***;SSL Mode=Require"
+                AllowConnectionStringRewrite="false"/>
+      -->
     </connection>
   </group>
 </settings>

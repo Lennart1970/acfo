@@ -4,7 +4,7 @@ Download **Exact Online** financial transactions (grootboekmutaties) into **MySQ
 
 Exact Online does not expose a MySQL dump. You either let **Invantive Data Hub** copy `TransactionLinesIncremental` into a database, or you call Exact’s Sync API yourself (`python -m acfo`).
 
-If the goal is **Microsoft Copilot agents**, do not use MySQL. Replica in **Azure SQL** (via Invantive), then Copilot Studio knowledge. See [docs/copilot.md](docs/copilot.md).
+If the goal is **Microsoft Copilot agents**, do not use MySQL. Replica in **Azure SQL** (via Invantive), then Copilot Studio knowledge. **Supabase** works as the Postgres replica and as a Copilot *tool* (PostgREST), not as native Studio knowledge. See [docs/copilot.md](docs/copilot.md).
 
 ## Invantive is the better alternative (if you have a license)
 
