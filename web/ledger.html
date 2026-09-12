@@ -104,11 +104,12 @@
         <option value="40">40 bank / kas</option>
       </select>
     </label>
-    <label>Dagboek <input name="journal_code" placeholder="90"></label>
-    <label>Grootboek <input name="gl_account_code" placeholder="1300"></label>
+    <label>Dagboek <input name="journal_code" placeholder="bijv. 90"></label>
+    <label>Grootboek <input name="gl_account_code" placeholder="bijv. 1300"></label>
     <label>Zoek <input name="q" placeholder="omschrijving of relatie"></label>
     <button type="submit">Toon</button>
     <button type="button" class="secondary" id="bank">Alleen bank</button>
+    <button type="reset" class="secondary" id="reset">Wis</button>
   </form>
   <div class="banner" id="demo"></div>
   <div class="error" id="error"></div>
@@ -191,8 +192,12 @@
       load();
     });
     document.getElementById("bank").addEventListener("click", () => {
+      form.reset();
       form.type.value = "40";
       load();
+    });
+    document.getElementById("reset").addEventListener("click", () => {
+      window.setTimeout(load, 0);
     });
     load();
   </script>
