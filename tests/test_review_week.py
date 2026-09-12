@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 
 from zipfile import ZipFile
 
-from confidence_core import score_case
+from confidence_core import cost_lines, modal, score_case
 from excel_transactions import (
     apply_scope,
     build_cases,
@@ -163,3 +163,42 @@ def test_invantive_purchase_lines(invantive_export: Path):
     assert row["supplier"] == "Broekhuis Lease"
     assert row["amount"] == 1069.25
     assert row["route"] in {"Auto", "AI Review", "Human Review"}
+
+
+def test_modal_tie_is_none():
+    assert modal([]) is None
+    assert modal(["4066", "4066", "1450"]) == "4066"
+    assert modal(["4066", "1450", "1300", "4066", "1450", "1300"]) is None
+
+
+def test_cost_lines_drop_ap_and_vat():
+    lines = [
+        {"glAccountCode": "4066", "vatCode": "1", "glAccountType": 120, "lineNumber": 1},
+        {"glAccountCode": "1450", "vatCode": "1", "glAccountType": 24, "lineNumber": 9999},
+        {"glAccountCode": "1300", "vatCode": "", "glAccountType": 22, "lineNumber": 0},
+    ]
+    only = cost_lines(lines)
+    assert [ln["glAccountCode"] for ln in only] == ["4066"]
+
+
+def test_remote_europe_26400543_auto_after_cost_gl_filter(remote_europe_export: Path):
+    bundle = apply_scope(load_entries(remote_europe_export), "auto")
+    _, matched = entries_in_week(bundle, "2026-W27")
+    case = next(c for c in build_cases(bundle, matched) if c["entry"]["entryNumber"] == "26400543")
+    assert {h["entryNumber"] for h in case["history"]} >= {"26400429", "26400311"}
+    all_hist_gls = {str(ln.get("glAccountCode") or "") for ln in case["history_lines"]}
+    assert {"4066", "1450", "1300"} <= all_hist_gls
+
+    scored = score_case(case)
+    assert scored["evidence"]["current"]["gl"] == "4066"
+    assert scored["evidence"]["historical_modal"]["gl"] == "4066"
+    assert scored["signals"]["gl_consistent"] is True
+    assert scored["signals"]["vat_consistent"] is True
+    assert scored["signals"]["no_unusual_change"] is True
+    assert scored["confidence"] == 1.0
+    assert scored["route"] == "Auto"
+
+    summary = review_week(bundle, "2026-W27")
+    row = next(r for r in summary["results"] if r["entryNumber"] == "26400543")
+    assert row["route"] == "Auto"
+    assert row["confidence"] == 1.0

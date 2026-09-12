@@ -10,6 +10,7 @@ from exact_fixtures import (
     write_en_lines_export,
     write_invantive_purchases,
     write_nl_export,
+    write_remote_europe_gl_trap,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,3 +35,8 @@ def dutch_amounts_export(tmp_path: Path) -> Path:
 @pytest.fixture
 def invantive_export(tmp_path: Path) -> Path:
     return write_invantive_purchases(tmp_path / "gmr-eol-transaction-lines.xlsx")
+
+
+@pytest.fixture
+def remote_europe_export(tmp_path: Path) -> Path:
+    return write_remote_europe_gl_trap(tmp_path / "gmr-eol-remote-europe.xlsx")

@@ -128,6 +128,27 @@ def write_invantive_purchases(path: Path) -> Path:
     return path
 
 
+def write_remote_europe_gl_trap(path: Path) -> Path:
+    """Invantive double-entry where AP/VAT would steal the historical modal GL."""
+    rows = [
+        [date(2026, 5, 6), "40", "Purchases", 26400311, 1, 8470.84, "EUR", "Remote Europe", "4066", "Remote Europe Holding B.V.", "1", 120, 3919124],
+        [date(2026, 5, 6), "40", "Purchases", 26400311, 9999, 1778.88, "EUR", "Remote Europe", "1450", "Remote Europe Holding B.V.", "1", 24, 3919124],
+        [date(2026, 5, 6), "40", "Purchases", 26400311, 0, -10249.72, "EUR", "Remote Europe", "1300", "Remote Europe Holding B.V.", None, 22, 3919124],
+        [date(2026, 6, 3), "40", "Purchases", 26400429, 1, 8470.84, "EUR", "Remote Europe", "4066", "Remote Europe Holding B.V.", "1", 120, 3919124],
+        [date(2026, 6, 3), "40", "Purchases", 26400429, 9999, 1778.88, "EUR", "Remote Europe", "1450", "Remote Europe Holding B.V.", "1", 24, 3919124],
+        [date(2026, 6, 3), "40", "Purchases", 26400429, 0, -10249.72, "EUR", "Remote Europe", "1300", "Remote Europe Holding B.V.", None, 22, 3919124],
+        [date(2026, 7, 1), "40", "Purchases", 26400543, 1, 8470.84, "EUR", "Remote Europe", "4066", "Remote Europe Holding B.V.", "1", 120, 3919124],
+        [date(2026, 7, 1), "40", "Purchases", 26400543, 9999, 1778.88, "EUR", "Remote Europe", "1450", "Remote Europe Holding B.V.", "1", 24, 3919124],
+        [date(2026, 7, 1), "40", "Purchases", 26400543, 0, -10249.72, "EUR", "Remote Europe", "1300", "Remote Europe Holding B.V.", None, 22, 3919124],
+    ]
+    wb = Workbook()
+    add_sheet(wb, "Parameters", ["Module", "Gebruiker"], [["TransactionLines", "test"]])
+    add_sheet(wb, "TransactionLines", INVANTIVE_HEADERS, rows)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(path)
+    return path
+
+
 def write_dutch_amounts_export(path: Path) -> Path:
     wb = Workbook()
     ws = wb.active

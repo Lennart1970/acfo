@@ -8,7 +8,12 @@ from __future__ import annotations
 
 import re
 import statistics
+from collections import Counter
 from datetime import date
+
+COST_GL_TYPES = {"110", "111", "120", "121", "122", "125"}
+AP_GL_CODES = {"1300", "1600"}
+VAT_GL_CODES = {"1450", "1400", "1410", "1420"}
 
 DEFAULT_CONFIG = {
     "thresholds": {"auto": 0.9, "ai_review": 0.6},
@@ -43,8 +48,50 @@ def tokenize(text):
     return set(t for t in re.split(r"[^a-z0-9]+", (text or "").lower()) if len(t) > 2)
 
 
-def modal(xs):
-    return max(set(xs), key=xs.count) if xs else None
+def modal(values):
+    """Most common value. A tie is None — never pick a random GL/VAT."""
+    if not values:
+        return None
+    counts = Counter(values)
+    highest = max(counts.values())
+    winners = [value for value, count in counts.items() if count == highest]
+    return winners[0] if len(winners) == 1 else None
+
+
+def is_cost_line(line: dict) -> bool:
+    gl_type = str(line.get("glAccountType") or "").strip()
+    gl_code = str(line.get("glAccountCode") or "").strip()
+    line_number = str(line.get("lineNumber") or "").strip()
+    return (
+        gl_type in COST_GL_TYPES
+        and gl_code not in AP_GL_CODES
+        and gl_code not in VAT_GL_CODES
+        and line_number != "9999"
+    )
+
+
+def is_balance_line(line: dict) -> bool:
+    gl_code = str(line.get("glAccountCode") or "").strip()
+    line_number = str(line.get("lineNumber") or "").strip()
+    gl_type = str(line.get("glAccountType") or "").strip()
+    return (
+        gl_code in AP_GL_CODES
+        or gl_code in VAT_GL_CODES
+        or line_number == "9999"
+        or gl_type == "22"
+    )
+
+
+def cost_lines(lines: list | None) -> list[dict]:
+    """GL/VAT comparison uses cost lines only.
+
+    Invantive exports carry Grootboekrekeningsoort; then require a cost type.
+    Simple one-line Exact exports have no type — drop AP/VAT by code instead.
+    """
+    rows = list(lines or [])
+    if any(str(ln.get("glAccountType") or "").strip() for ln in rows):
+        return [ln for ln in rows if is_cost_line(ln)]
+    return [ln for ln in rows if not is_balance_line(ln)]
 
 
 def _iso_day(value):
@@ -82,16 +129,19 @@ def score_case(case: dict, config: dict | None = None) -> dict:
     known = int(case.get("accounts_count") or 0) > 0
 
     supplier_name = (entry.get("supplierName") or "").strip()
-    cur_gl = (lines[0].get("glAccountCode") or "").strip() if lines else ""
-    cur_vat = (lines[0].get("vatCode") or "").strip() if lines else ""
+    current_cost = cost_lines(lines)
+    historical_cost = cost_lines(history_lines)
+    primary = current_cost[0] if current_cost else (lines[0] if lines else {})
+    cur_gl = str(primary.get("glAccountCode") or "").strip()
+    cur_vat = str(primary.get("vatCode") or "").strip()
     cur_amount = abs(entry.get("amountDC") or 0)
     cur_currency = entry.get("currency") or ""
     cur_paycond = entry.get("paymentCondition") or ""
     cur_desc = entry.get("description") or ""
     cur_date = _iso_day(entry.get("entryDate"))
 
-    hist_gls = [l.get("glAccountCode", "").strip() for l in history_lines if l.get("glAccountCode")]
-    hist_vats = [l.get("vatCode", "").strip() for l in history_lines if l.get("vatCode")]
+    hist_gls = [str(l.get("glAccountCode") or "").strip() for l in historical_cost if l.get("glAccountCode")]
+    hist_vats = [str(l.get("vatCode") or "").strip() for l in historical_cost if l.get("vatCode")]
     hist_amounts = [abs(h.get("amountDC") or 0) for h in history if h.get("amountDC")]
     hist_dates = sorted(d for d in (_iso_day(h.get("entryDate")) for h in history) if d)
     hist_currencies = [h.get("currency") for h in history if h.get("currency")]

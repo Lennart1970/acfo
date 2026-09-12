@@ -59,7 +59,8 @@ Controleer:
 
 - Groepeer op **Boekingnummer**. Elke regel is geen boekstuk (354 regels in week 23 ≠ 32 inkoopboekingen).
 - Dubbel boekhouden: debet + credit ≈ 0. **Factuurbedrag = abs(crediteurenregel)** (GB `1300`, soort `22`), niet de som van alle regels.
-- Score-GL/btw komt van de **kostenregel** (soort 110/120/…, regel ≥ 1), niet van 1300 of btw-regel `9999` / GB `1450`.
+- Score-GL/btw komt van de **kostenregel** (soort `110/111/120/121/122/125`, regel ≠ `9999`), niet van crediteuren (`1300`/`1600`, soort `22`) of btw (`1450`/`1400`/`1410`/`1420`).
+- **Geschiedenis hetzelfde:** vergelijk alleen kostenregels van eerdere boekingen. Anders wint `modal()` soms `1300` (gelijkspel 4066/1450/1300) en wordt `gl_consistent` ten onrechte false. Zie Remote Europe **26400543**.
 - Standaard alleen inkoopdagboek **40** (Purchases) en **41** (Purchases via MOSS). Dit bestand bevat ook 20/21/23 bank, 30 sales, 90 memoriaal, 91 payroll, 92 assets, 93 deferred sales & costs. Die horen niet in de inkoopreview tenzij de gebruiker `--scope all` vraagt.
 
 **2c. Eerste parse-run, daarna pas week vragen**
@@ -98,7 +99,9 @@ python3 scripts/review_week.py --input "$UPLOAD" --week 2026-W23 --output Weekov
 Python daarna:
 
 - filtert de gekozen ISO-week
-- per boeking: geschiedenis = **andere inkoopboekingen in hetzelfde bestand** voor dezelfde leverancier (max. 3 recente voor grootboek/btw-regels)
+- per boeking: geschiedenis = **andere inkoopboekingen in hetzelfde bestand** voor dezelfde leverancier (max. 3 recente)
+- grootboek/btw: alleen **kostenregels** van die geschiedenis (`confidence_core.cost_lines`). Nooit 1300/1450 meestellen.
+- bij een gelijkspel kiest `modal()` geen rekening (`None`), geen willekeurige `set`-winnaar
 - `accounts_count` = 1 als de leveranciersnaam gevuld is (geen `accounts_search`)
 - dezelfde signaalwiskunde als v1 (`confidence_core.py`)
 
@@ -121,6 +124,37 @@ Niet in het model nalopen. Niet Exact of Dataverse schrijven.
 Signalen: bekende leverancier, eerder geboekt, grootboek, btw, bedragband, cadence, omschrijving, valuta/betaling, geen bijzondere afwijking.
 
 Eerste boeking van een leverancier in het bestand heeft geen geschiedenis → meestal Human Review.
+
+## Historische grootboekvergelijking = alleen kostenregels
+
+Een inkoopboeking heeft altijd drie rollen. Alleen de kostenregel is de kostencategorie:
+
+| Rol | Grootboek | Meenemen in GL/btw-score? |
+|---|---|---|
+| Kostenregel | bijv. **4066** | ja |
+| Btw-regel | **1450** (regel `9999`) | nee |
+| Crediteurenregel | **1300** (soort `22`) | nee |
+
+`build_cases()` mag alle regels bewaren. `score_case()` filtert vóór `hist_gls` / `cur_gl`. Anders: 2 eerdere boekingen → 4066, 1450 en 1300 elk 2× → `modal()` koos 1300 → `4066 != 1300` → −20 `gl_consistent` −10 `no_unusual_change`.
+
+Bewijs Remote Europe Holding B.V. in `gmr-eol-transaction-lines`:
+
+- **26400429** (3 juni 2026): kosten 4066 €8.470,84 / btw 1450 / crediteuren 1300
+- **26400543** (1 juli 2026): dezelfde verdeling
+
+Juist: `4066 == 4066` → `gl_consistent` true. Verwacht na fix: **100% — Auto**.
+
+Acceptatietest boeking **26400543**:
+
+```text
+current cost GL: 4066
+historical modal cost GL: 4066
+gl_consistent: true
+vat_consistent: true
+no_unusual_change: true
+confidence: 1.0
+route: Auto
+```
 
 ## Weigeren
 
