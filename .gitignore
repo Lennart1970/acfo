@@ -1,0 +1,10 @@
+*.skill
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.xlsx
+!acfo/copilot-skills/booking-weekoverzicht-v2/fixtures/*.xlsx
+.env
+.DS_Store
