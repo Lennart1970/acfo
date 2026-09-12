@@ -15,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000, continue in demo mode, then:
+Open http://localhost:3000 (or the Cloud Agent forwarded port), continue in demo mode, then:
 
 1. Open each seeded project
 2. Post a message and add a to-do
