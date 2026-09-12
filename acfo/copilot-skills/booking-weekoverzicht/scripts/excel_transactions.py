@@ -41,6 +41,8 @@ ALIASES = {
         "boekstuk",
         "boekstuknummer",
         "boekstuknr",
+        "boekingnummer",
+        "bookingnumber",
         "entrynumber",
         "entry",
         "entryno",
@@ -52,6 +54,7 @@ ALIASES = {
         "leverancier",
         "relatie",
         "relatienaam",
+        "accountnaam",
         "accountname",
         "account",
         "supplier",
@@ -62,6 +65,8 @@ ALIASES = {
     "amountDC": (
         "bedrag",
         "bedragdc",
+        "bedragadministratiemunteenheid",
+        "bedragadministratie",
         "amountdc",
         "amount",
         "totaal",
@@ -69,16 +74,23 @@ ALIASES = {
         "bedragfc",
     ),
     "currency": ("valuta", "currency", "munteenheid"),
-    "vatCode": ("btwcode", "btw", "vatcode", "vat", "btwcode"),
+    "vatCode": ("btwcode", "btw", "vatcode", "vat"),
     "glAccountCode": (
         "grootboek",
+        "grootboekrekeningcode",
         "grootboekrekening",
         "glaccount",
         "glaccountcode",
         "rekening",
         "rekeningcode",
     ),
+    "glAccountType": (
+        "grootboekrekeningsoort",
+        "glaccounttype",
+        "rekeningsoort",
+    ),
     "journalCode": ("journaal", "dagboek", "journal", "journalcode", "dagboekcode"),
+    "journalDescription": ("dagboekomschrijving", "journaldescription", "dagboeknaam"),
     "paymentCondition": (
         "betalingsconditie",
         "paymentcondition",
@@ -90,7 +102,13 @@ ALIASES = {
     "lineNumber": ("regel", "linenumber", "lineno", "regelnummer"),
 }
 
-SKIP_SHEETS = {"overzicht", "overview", "readme"}
+SKIP_SHEETS = {"overzicht", "overview", "readme", "parameters"}
+PURCHASE_JOURNALS = {"40", "41"}
+PURCHASE_JOURNAL_HINTS = ("purchase", "inkoop")
+AP_GL_TYPES = {22, "22"}
+COST_GL_TYPES = {110, 111, 120, 121, 122, 125, "110", "111", "120", "121", "122", "125"}
+VAT_GL_CODES = {"1450", "1400", "1410", "1420"}
+AP_GL_CODES = {"1300", "1600"}
 
 
 def norm_header(value) -> str:
@@ -298,11 +316,43 @@ def _row_to_record(row, mapping: dict[int, str]) -> dict:
     rec["vatCode"] = str(rec.get("vatCode") or "").strip()
     rec["glAccountCode"] = str(rec.get("glAccountCode") or "").strip()
     rec["journalCode"] = str(rec.get("journalCode") or "").strip()
+    rec["journalDescription"] = str(rec.get("journalDescription") or "").strip()
     rec["paymentCondition"] = str(rec.get("paymentCondition") or "").strip()
     rec["description"] = str(rec.get("description") or "").strip()
     rec["division"] = str(rec.get("division") or "").strip()
     rec["lineNumber"] = rec.get("lineNumber")
+    rec["glAccountType"] = rec.get("glAccountType")
     return rec
+
+
+def _line_role(rec: dict) -> str:
+    gl = str(rec.get("glAccountCode") or "")
+    kind = rec.get("glAccountType")
+    line_no = str(rec.get("lineNumber") or "")
+    if kind in AP_GL_TYPES or gl in AP_GL_CODES:
+        return "ap"
+    if gl in VAT_GL_CODES or line_no == "9999":
+        return "vat"
+    if kind in COST_GL_TYPES:
+        return "cost"
+    return "other"
+
+
+def _document_amount(lines: list[dict]):
+    ap = [ln["amountDC"] for ln in lines if _line_role(ln) == "ap" and ln.get("amountDC") is not None]
+    if ap:
+        return round(abs(sum(ap)), 2)
+    costs = [ln["amountDC"] for ln in lines if _line_role(ln) == "cost" and ln.get("amountDC") is not None]
+    if costs:
+        return round(abs(sum(costs)), 2)
+    amounts = [ln["amountDC"] for ln in lines if ln.get("amountDC") is not None]
+    if not amounts:
+        return None
+    unique = {round(a, 2) for a in amounts}
+    if len(lines) > 1 and len(unique) > 1:
+        positives = [a for a in amounts if a > 0]
+        return round(sum(positives), 2) if positives else round(abs(amounts[0]), 2)
+    return amounts[0]
 
 
 def _group_key(rec: dict, index: int) -> str:
@@ -316,27 +366,28 @@ def _group_key(rec: dict, index: int) -> str:
 
 def _header_from_lines(entry_number: str, lines: list[dict]) -> dict:
     first = lines[0]
-    amounts = [ln["amountDC"] for ln in lines if ln.get("amountDC") is not None]
-    if len(lines) > 1 and amounts:
-        # Line export: sum unique line amounts. Header-only dumps repeat the
-        # same document total on every line — do not sum those.
-        unique = {round(a, 2) for a in amounts}
-        amount = sum(amounts) if len(unique) > 1 else amounts[0]
-    else:
-        amount = amounts[0] if amounts else None
-    descriptions = [ln["description"] for ln in lines if ln.get("description")]
+    cost = next((ln for ln in lines if _line_role(ln) == "cost"), None)
+    ap = next((ln for ln in lines if _line_role(ln) == "ap"), None)
+    named = next((ln for ln in lines if (ln.get("supplierName") or "").strip()), first)
+    primary = cost or ap or first
+    descriptions = [
+        ln["description"]
+        for ln in (cost, ap, first)
+        if ln and ln.get("description")
+    ]
     return {
         "entryNumber": entry_number,
         "entryDate": first.get("entryDate"),
-        "supplierName": first.get("supplierName") or "",
-        "amountDC": amount,
+        "supplierName": (ap or named).get("supplierName") or "",
+        "amountDC": _document_amount(lines),
         "currency": first.get("currency") or "",
         "paymentCondition": first.get("paymentCondition") or "",
         "description": descriptions[0] if descriptions else "",
         "journalCode": first.get("journalCode") or "",
+        "journalDescription": first.get("journalDescription") or "",
         "journal": first.get("journalCode") or "",
         "division": first.get("division") or "",
-        "vatCode": first.get("vatCode") or "",
+        "vatCode": (cost or primary).get("vatCode") or "",
     }
 
 
@@ -346,7 +397,37 @@ def _as_line(rec: dict) -> dict:
         "vatCode": rec.get("vatCode") or "",
         "amountDC": rec.get("amountDC"),
         "description": rec.get("description") or "",
+        "glAccountType": rec.get("glAccountType"),
+        "lineNumber": rec.get("lineNumber"),
     }
+
+
+def _score_lines(recs: list[dict]) -> list[dict]:
+    order = {"cost": 0, "vat": 1, "other": 2, "ap": 3}
+    scored = [_as_line(r) for r in recs]
+    return sorted(scored, key=lambda ln: (order.get(_line_role(ln), 2), str(ln.get("lineNumber") or "")))
+
+
+def is_purchase_journal(entry: dict) -> bool:
+    code = str(entry.get("journalCode") or "").strip()
+    if code in PURCHASE_JOURNALS:
+        return True
+    desc = str(entry.get("journalDescription") or "").lower()
+    return any(hint in desc for hint in PURCHASE_JOURNAL_HINTS)
+
+
+def apply_scope(bundle: dict, scope: str = "auto") -> dict:
+    entries = list(bundle.get("entries") or [])
+    purchases = [item for item in entries if is_purchase_journal(item["entry"])]
+    used = scope
+    if scope == "auto":
+        used = "purchases" if purchases else "all"
+    selected = purchases if used == "purchases" else entries
+    out = dict(bundle)
+    out["entries"] = selected
+    out["scope"] = used
+    out["entries_unfiltered"] = len(entries)
+    return out
 
 
 def load_entries(path: str | Path) -> dict:
@@ -394,7 +475,7 @@ def load_entries(path: str | Path) -> dict:
         entries.append(
             {
                 "entry": header,
-                "lines": [_as_line(r) for r in recs],
+                "lines": _score_lines(recs),
             }
         )
     entries.sort(key=lambda e: (e["entry"]["entryDate"] or "", e["entry"]["entryNumber"] or ""))

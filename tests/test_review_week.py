@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 
 from confidence_core import score_case
 from excel_transactions import (
+    apply_scope,
     build_cases,
     entries_in_week,
     list_weeks,
@@ -112,3 +113,24 @@ def test_weeks_payload_does_not_score(nl_export: Path):
     payload = weeks_payload(load_entries(nl_export))
     assert "results" not in payload
     assert payload["entries_in_file"] == 9
+
+
+def test_invantive_purchase_lines(invantive_export: Path):
+    raw = load_entries(invantive_export)
+    assert {e["entry"]["entryNumber"] for e in raw["entries"]} == {"26400300", "26400387", "26200210"}
+    scoped = apply_scope(raw, "auto")
+    assert scoped["scope"] == "purchases"
+    assert {e["entry"]["entryNumber"] for e in scoped["entries"]} == {"26400300", "26400387"}
+    week37 = next(e for e in scoped["entries"] if e["entry"]["entryNumber"] == "26400387")
+    assert week37["entry"]["supplierName"] == "Broekhuis Lease"
+    assert week37["entry"]["amountDC"] == 1069.25
+    assert week37["lines"][0]["glAccountCode"] == "4500"
+    assert week37["lines"][0]["vatCode"] == "1"
+
+    summary = review_week(scoped, "2026-W23")
+    assert summary["entries"] == 1
+    row = summary["results"][0]
+    assert row["entryNumber"] == "26400387"
+    assert row["supplier"] == "Broekhuis Lease"
+    assert row["amount"] == 1069.25
+    assert row["route"] in {"Auto", "AI Review", "Human Review"}

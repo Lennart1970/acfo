@@ -92,6 +92,42 @@ def write_en_lines_export(path: Path) -> Path:
     return path
 
 
+INVANTIVE_HEADERS = [
+    "Datum",
+    "Dagboekcode",
+    "Dagboekomschrijving",
+    "Boekingnummer",
+    "Regelnummer",
+    "Bedrag Administratie Munteenheid",
+    "Valuta",
+    "Omschrijving",
+    "Grootboekrekening Code",
+    "Accountnaam",
+    "BTW-code",
+    "Grootboekrekeningsoort",
+    "Divisie",
+]
+
+
+def write_invantive_purchases(path: Path) -> Path:
+    """Invantive TransactionLines: double-entry purchase journals 40."""
+    rows = [
+        [date(2026, 5, 25), "40", "Purchases", 26400300, 1, 800.00, "EUR", "Lease mei", "4500", "Broekhuis Lease", "1", 120, 3919124],
+        [date(2026, 5, 25), "40", "Purchases", 26400300, 9999, 168.00, "EUR", "Lease mei", "1450", "Broekhuis Lease", "1", 24, 3919124],
+        [date(2026, 5, 25), "40", "Purchases", 26400300, 0, -968.00, "EUR", "Lease mei", "1300", "Broekhuis Lease", None, 22, 3919124],
+        [date(2026, 6, 1), "40", "Purchases", 26400387, 1, 883.68, "EUR", "Broekhuis Lease", "4500", "Broekhuis Lease", "1", 120, 3919124],
+        [date(2026, 6, 1), "40", "Purchases", 26400387, 9999, 185.57, "EUR", "Broekhuis Lease", "1450", "Broekhuis Lease", "1", 24, 3919124],
+        [date(2026, 6, 1), "40", "Purchases", 26400387, 0, -1069.25, "EUR", "Broekhuis Lease", "1300", "Broekhuis Lease", None, 22, 3919124],
+        [date(2026, 6, 1), "20", "NL06 RABO", 26200210, 1, 501.20, "EUR", "Reimbursement", "4380", "", None, 120, 3919124],
+        [date(2026, 6, 1), "20", "NL06 RABO", 26200210, 0, -501.20, "EUR", "Reimbursement", "1100", "", None, 12, 3919124],
+    ]
+    wb = Workbook()
+    add_sheet(wb, "TransactionLines", INVANTIVE_HEADERS, rows)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(path)
+    return path
+
+
 def write_dutch_amounts_export(path: Path) -> Path:
     wb = Workbook()
     ws = wb.active

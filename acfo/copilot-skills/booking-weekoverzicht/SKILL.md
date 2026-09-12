@@ -56,8 +56,9 @@ python3 scripts/review_week.py --input "$UPLOAD" --week 2026-W37 --output Weekov
 
 Python doet intern:
 
-- parse Exact-kolommen (NL/EN: Datum, Boekstuk, Leverancier, Bedrag, Btw, Grootboek, …)
-- groepeert regels tot boekstukken
+- parse Exact-kolommen (NL/EN én Invantive TransactionLines: Datum, Boekingnummer, Accountnaam, Bedrag Administratie Munteenheid, Grootboekrekening Code, BTW-code, …)
+- groepeert regels tot boekstukken (`Boekingnummer`); bij dubbel boekhouden is het factuurbedrag de crediteurenregel, niet de som van alle regels
+- standaard alleen inkoopdagboeken **40 / 41** (Purchases) als die in het bestand zitten (`--scope auto`)
 - filtert de gekozen ISO-week
 - per boeking: geschiedenis = **andere rijen in hetzelfde bestand** voor dezelfde leverancier (max. 3 recente voor grootboek/btw-regels)
 - `accounts_count` = 1 als de leveranciersnaam gevuld is (Excel-v2, geen `accounts_search`)

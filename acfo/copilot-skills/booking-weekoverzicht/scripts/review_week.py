@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from confidence_core import DEFAULT_CONFIG, score_case
-from excel_transactions import build_cases, entries_in_week, list_weeks, load_entries
+from excel_transactions import apply_scope, build_cases, entries_in_week, list_weeks, load_entries
 from write_weekoverzicht import outcome_text, scored_row, write_xlsx
 
 
@@ -22,7 +22,9 @@ def weeks_payload(bundle: dict) -> dict:
         "source": bundle.get("source"),
         "sourceName": bundle.get("sourceName"),
         "administrationCode": bundle.get("administrationCode") or "",
-        "entries_in_file": len(bundle.get("entries") or []),
+        "scope": bundle.get("scope") or "auto",
+        "entries_in_file": bundle.get("entries_unfiltered", len(bundle.get("entries") or [])),
+        "entries_in_scope": len(bundle.get("entries") or []),
         "weeks": weeks,
     }
 
@@ -60,7 +62,9 @@ def review_week(bundle: dict, week: str, config=None) -> dict:
         "administrationCode": bundle.get("administrationCode") or "",
         "source": bundle.get("source"),
         "sourceName": bundle.get("sourceName"),
-        "entries_in_file": len(bundle.get("entries") or []),
+        "scope": bundle.get("scope") or "auto",
+        "entries_in_file": bundle.get("entries_unfiltered", len(bundle.get("entries") or [])),
+        "entries_in_scope": len(bundle.get("entries") or []),
         "entries": len(results),
         "counts": counts,
         "results": results,
@@ -80,13 +84,19 @@ def parse_args(argv=None):
         help="ISO week (2026-W37), 'week 37', or a date in that week. Omit to list weeks.",
     )
     p.add_argument("--output", default="", help="xlsx path")
+    p.add_argument(
+        "--scope",
+        default="auto",
+        choices=("auto", "purchases", "all"),
+        help="auto: inkoopdagboek 40/41 when present, else all journals",
+    )
     p.add_argument("--json", action="store_true")
     return p.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
-    bundle = load_entries(args.input)
+    bundle = apply_scope(load_entries(args.input), args.scope)
     if not args.week:
         payload = weeks_payload(bundle)
         json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)

@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from exact_fixtures import write_dutch_amounts_export, write_en_lines_export, write_nl_export
+from exact_fixtures import (
+    write_dutch_amounts_export,
+    write_en_lines_export,
+    write_invantive_purchases,
+    write_nl_export,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "acfo" / "scripts"))
@@ -24,3 +29,8 @@ def en_lines_export(tmp_path: Path) -> Path:
 @pytest.fixture
 def dutch_amounts_export(tmp_path: Path) -> Path:
     return write_dutch_amounts_export(tmp_path / "bedragen.xlsx")
+
+
+@pytest.fixture
+def invantive_export(tmp_path: Path) -> Path:
+    return write_invantive_purchases(tmp_path / "gmr-eol-transaction-lines.xlsx")
