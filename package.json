@@ -1,0 +1,31 @@
+{
+  "name": "acfo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "acfo - a small full-stack notes app used to demonstrate the Cloud Agent dev environment",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev -w @acfo/server",
+    "dev:web": "npm run dev -w @acfo/web",
+    "build": "npm run build -w @acfo/server && npm run build -w @acfo/web",
+    "typecheck": "npm run typecheck -w @acfo/server && npm run typecheck -w @acfo/web",
+    "test": "npm run test -w @acfo/server",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.13.0",
+    "globals": "^15.11.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.12.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
