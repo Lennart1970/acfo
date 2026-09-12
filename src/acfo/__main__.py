@@ -147,7 +147,14 @@ def _sync_divisions(client: ExactClient, all_divisions: bool) -> list[int]:
 
 
 def _web(args: argparse.Namespace) -> int:
-    from acfo.webview import LedgerApp, find_ledger_html, port_from_env, run_server
+    from acfo.webview import (
+        LedgerApp,
+        api_key_from_env,
+        find_ledger_html,
+        port_from_env,
+        run_server,
+        source_from_env,
+    )
 
     settings = load_settings(args.env_file, require_exact=False)
     store = None
@@ -161,11 +168,16 @@ def _web(args: argparse.Namespace) -> int:
             print(f"SQL not available ({exc}); serving demo rows.", file=sys.stderr)
             store = None
             demo = True
+    api_key = api_key_from_env()
+    if api_key is None and args.host not in {"127.0.0.1", "localhost", "::1"}:
+        print("Warning: LEDGER_API_KEY is empty; /api/lines is open on this host.", file=sys.stderr)
     app = LedgerApp(
         store,
         html_path=find_ledger_html(_repo_root()),
         dialect=dialect,
         demo=demo,
+        source=source_from_env(),
+        api_key=api_key,
     )
     run_server(app, host=args.host, port=args.port if args.port is not None else port_from_env())
     return 0

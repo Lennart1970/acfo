@@ -3,7 +3,7 @@
 The pipeline is **Exact Online → Invantive → SQL → web view**. See [exact-sql-webview.md](exact-sql-webview.md). App Online query: [app-online-ledger.sql](app-online-ledger.sql).
 
 - **Virtual SQL + Invantive web:** Cloud database → Bridge Online OData or App Online HTML.
-- **Your SQL + your web:** Data Hub copies Incremental tables to Supabase → `python -m acfo web` / PostgREST / Table Editor.
+- **Your SQL + your web:** Data Hub runs [copy-to-supabase.sql](copy-to-supabase.sql) → `transaction_lines_invantive` in Supabase → `python -m acfo web` (`LEDGER_SOURCE=transaction_lines_invantive`) / PostgREST. Order of work: [../docs/deployment-plan.md](../docs/deployment-plan.md).
 
 # Invantive as the Exact Online → MySQL / Postgres path
 

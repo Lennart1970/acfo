@@ -103,6 +103,41 @@ def test_fetch_ledger_uses_parameterized_sql():
     assert 40 in store._cursor.calls[0][1]
 
 
+def test_ledger_source_is_validated():
+    from acfo.ledger import ledger_source
+
+    assert ledger_source(None) == "transaction_lines_incremental"
+    assert ledger_source("transaction_lines_invantive") == "transaction_lines_invantive"
+    try:
+        ledger_source("lines; drop table x")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_sql_uses_configured_source():
+    sql, _ = build_ledger_sql(LedgerFilter(), source="transaction_lines_invantive")
+    assert "from transaction_lines_invantive " in sql
+
+
+def test_api_key_guards_lines_only():
+    app = LedgerApp(html_path=find_ledger_html(), demo=True, api_key="s3cret")
+    status, _, _ = app.handle("GET", "/api/lines", {})
+    assert status == 401
+    status, _, _ = app.handle("GET", "/api/lines", {}, {"X-Api-Key": "wrong"})
+    assert status == 401
+    status, _, _ = app.handle("GET", "/api/lines", {}, {"X-Api-Key": "s3cret"})
+    assert status == 200
+    status, _, _ = app.handle("GET", "/api/lines", {}, {"Authorization": "Bearer s3cret"})
+    assert status == 200
+    status, _, _ = app.handle("GET", "/", {})
+    assert status == 200
+    status, _, body = app.handle("GET", "/health", {})
+    assert status == 200
+    assert b'"source"' in body
+
+
 def test_app_serves_html_and_lines(tmp_path):
     html = find_ledger_html()
     app = LedgerApp(html_path=html, demo=True)

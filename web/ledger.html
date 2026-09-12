@@ -113,6 +113,12 @@
   </form>
   <div class="banner" id="demo"></div>
   <div class="error" id="error"></div>
+  <form class="error" id="keyform" style="display:none; align-items:end; gap:0.75rem;">
+    <label style="flex:1">API-sleutel (LEDGER_API_KEY)
+      <input type="password" name="api_key" autocomplete="off">
+    </label>
+    <button type="submit">Ontgrendel</button>
+  </form>
   <div class="meta" id="meta">Laden…</div>
   <div class="table-wrap">
     <table>
@@ -140,6 +146,17 @@
     const emptyEl = document.getElementById("empty");
     const demoEl = document.getElementById("demo");
     const errorEl = document.getElementById("error");
+    const keyForm = document.getElementById("keyform");
+    const KEY = "acfo_ledger_api_key";
+
+    function apiKey() {
+      const fromUrl = new URLSearchParams(window.location.search).get("api_key");
+      if (fromUrl) {
+        sessionStorage.setItem(KEY, fromUrl);
+        history.replaceState(null, "", window.location.pathname);
+      }
+      return sessionStorage.getItem(KEY) || "";
+    }
 
     function money(value) {
       const n = Number(value);
@@ -153,7 +170,18 @@
       for (const [key, value] of data.entries()) {
         if (String(value).trim()) params.set(key, String(value).trim());
       }
-      const response = await fetch("/api/lines?" + params.toString());
+      const headers = {};
+      const key = apiKey();
+      if (key) headers["X-Api-Key"] = key;
+      const response = await fetch("/api/lines?" + params.toString(), { headers });
+      if (response.status === 401) {
+        keyForm.style.display = "flex";
+        metaEl.textContent = "";
+        rowsEl.replaceChildren();
+        emptyEl.hidden = true;
+        return;
+      }
+      keyForm.style.display = "none";
       if (!response.ok) {
         const body = await response.json().catch(() => ({ error: response.statusText }));
         errorEl.textContent = body.error || "Kon SQL-regels niet laden.";
@@ -198,6 +226,12 @@
     });
     document.getElementById("reset").addEventListener("click", () => {
       window.setTimeout(load, 0);
+    });
+    keyForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      sessionStorage.setItem(KEY, keyForm.api_key.value.trim());
+      keyForm.api_key.value = "";
+      load();
     });
     load();
   </script>

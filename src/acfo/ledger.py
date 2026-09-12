@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -24,6 +25,16 @@ LEDGER_COLUMNS: tuple[str, ...] = (
 
 MAX_LIMIT = 500
 DEFAULT_LIMIT = 200
+DEFAULT_SOURCE = "transaction_lines_incremental"
+_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def ledger_source(name: str | None) -> str:
+    """Table/view the web view reads. Invantive Data Hub writes transaction_lines_invantive."""
+    source = (name or "").strip() or DEFAULT_SOURCE
+    if not _IDENTIFIER.match(source):
+        raise ValueError(f"LEDGER_SOURCE must be a plain lowercase identifier, got {source!r}")
+    return source
 
 
 @dataclass(frozen=True)
@@ -97,7 +108,9 @@ def build_ledger_where(filt: LedgerFilter) -> tuple[str, list[Any]]:
     return " and ".join(clauses), params
 
 
-def build_ledger_sql(filt: LedgerFilter, *, dialect: str = "postgres") -> tuple[str, list[Any]]:
+def build_ledger_sql(
+    filt: LedgerFilter, *, dialect: str = "postgres", source: str = DEFAULT_SOURCE
+) -> tuple[str, list[Any]]:
     where_sql, params = build_ledger_where(filt)
     like_sql = where_sql
     like_params = list(params)
@@ -105,7 +118,7 @@ def build_ledger_sql(filt: LedgerFilter, *, dialect: str = "postgres") -> tuple[
         like_sql = where_sql.replace(" ilike ", " like ")
     columns = ", ".join(LEDGER_COLUMNS)
     sql = (
-        f"select {columns} from transaction_lines_incremental "
+        f"select {columns} from {ledger_source(source)} "
         f"where {like_sql} "
         f"order by date desc, entry_number desc, line_number "
         f"limit %s offset %s"
@@ -114,13 +127,15 @@ def build_ledger_sql(filt: LedgerFilter, *, dialect: str = "postgres") -> tuple[
     return sql, like_params
 
 
-def build_ledger_summary_sql(filt: LedgerFilter, *, dialect: str = "postgres") -> tuple[str, list[Any]]:
+def build_ledger_summary_sql(
+    filt: LedgerFilter, *, dialect: str = "postgres", source: str = DEFAULT_SOURCE
+) -> tuple[str, list[Any]]:
     where_sql, params = build_ledger_where(filt)
     if dialect == "mysql":
         where_sql = where_sql.replace(" ilike ", " like ")
     sql = (
         "select count(*) as n, coalesce(sum(amount_dc), 0) as amount_dc "
-        f"from transaction_lines_incremental where {where_sql}"
+        f"from {ledger_source(source)} where {where_sql}"
     )
     return sql, params
 
@@ -141,9 +156,15 @@ def jsonable(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def fetch_ledger(store: Any, filt: LedgerFilter, *, dialect: str = "postgres") -> dict[str, Any]:
-    list_sql, list_params = build_ledger_sql(filt, dialect=dialect)
-    sum_sql, sum_params = build_ledger_summary_sql(filt, dialect=dialect)
+def fetch_ledger(
+    store: Any,
+    filt: LedgerFilter,
+    *,
+    dialect: str = "postgres",
+    source: str = DEFAULT_SOURCE,
+) -> dict[str, Any]:
+    list_sql, list_params = build_ledger_sql(filt, dialect=dialect, source=source)
+    sum_sql, sum_params = build_ledger_summary_sql(filt, dialect=dialect, source=source)
     connection = store.connect()
     with connection.cursor() as cursor:
         cursor.execute(sum_sql, sum_params)
@@ -169,4 +190,5 @@ def fetch_ledger(store: Any, filt: LedgerFilter, *, dialect: str = "postgres") -
         "count": count,
         "amount_dc": format(Decimal(str(amount)), "f"),
         "rows": [jsonable(dict(row)) for row in rows],
+        "source": source,
     }

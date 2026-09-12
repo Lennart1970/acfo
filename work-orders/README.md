@@ -8,5 +8,6 @@ These are **phase 2**. The MVP does not need them. The same text is seeded in Su
 | [WO-002](WO-002-entra-readonly.md) | Read-only Entra app for the ledger API |
 | [WO-003](WO-003-copilot-postgrest.md) | Copilot tool on `transaction_lines_incremental` |
 | [WO-004](WO-004-optional-azure-sql.md) | Optional Azure SQL knowledge replica |
+| [WO-005](WO-005-power-platform-connector.md) | Power Platform custom connector on the Railway ledger (`X-Api-Key`) |
 
 Do not give admins the Supabase `service_role` key or the official Supabase MCP URL. Those are developer credentials.

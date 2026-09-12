@@ -40,4 +40,4 @@ The cron service **must exit**. Serve the ledger as a **separate** always-on Rai
 python -m acfo web --host 0.0.0.0 --port $PORT
 ```
 
-Same `DATABASE_URL`. Open `/` for grootboekmutaties. Invantive-native alternative: App Online / Bridge Online on Incremental SQL — no Railway web process.
+Same `DATABASE_URL`, plus `LEDGER_API_KEY` (protects `/api/lines`, header `X-Api-Key`) and, when Invantive Data Hub fills the table, `LEDGER_SOURCE=transaction_lines_invantive`. Open `/` for grootboekmutaties. Full order of work: [deployment-plan.md](deployment-plan.md). Invantive-native alternative: App Online / Bridge Online on Incremental SQL — no Railway web process.

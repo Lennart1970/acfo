@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from acfo.ledger import LedgerFilter, fetch_ledger, parse_ledger_filter
+from acfo.ledger import DEFAULT_SOURCE, LedgerFilter, fetch_ledger, ledger_source, parse_ledger_filter
 
 DEMO_ROWS: list[dict[str, Any]] = [
     {
@@ -138,6 +139,8 @@ def _demo_payload(filt: LedgerFilter) -> dict[str, Any]:
 
 
 class LedgerApp:
+    """API key: `X-Api-Key` header or `Authorization: Bearer`. Empty key = open (local only)."""
+
     def __init__(
         self,
         store: Any | None = None,
@@ -145,27 +148,56 @@ class LedgerApp:
         html_path: Path,
         dialect: str = "postgres",
         demo: bool = False,
+        source: str = DEFAULT_SOURCE,
+        api_key: str | None = None,
     ) -> None:
         self.store = store
         self.html_path = html_path
         self.dialect = dialect
         self.demo = demo or store is None
+        self.source = ledger_source(source)
+        self.api_key = (api_key or "").strip() or None
 
-    def handle(self, method: str, path: str, query: dict[str, str]) -> tuple[int, str, bytes]:
+    def _authorized(self, headers: dict[str, str] | None, query: dict[str, str]) -> bool:
+        if self.api_key is None:
+            return True
+        headers = {key.lower(): value for key, value in (headers or {}).items()}
+        presented = headers.get("x-api-key", "")
+        auth = headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            presented = presented or auth[7:].strip()
+        presented = presented or query.get("api_key", "")
+        return hmac.compare_digest(presented, self.api_key)
+
+    def handle(
+        self,
+        method: str,
+        path: str,
+        query: dict[str, str],
+        headers: dict[str, str] | None = None,
+    ) -> tuple[int, str, bytes]:
         if method != "GET":
             return 405, "text/plain; charset=utf-8", b"method not allowed\n"
         if path in {"/", "/ledger", "/ledger.html"}:
             return 200, "text/html; charset=utf-8", self.html_path.read_bytes()
         if path == "/health":
-            body = json.dumps({"ok": True, "demo": self.demo}).encode("utf-8")
+            body = json.dumps({"ok": True, "demo": self.demo, "source": self.source}).encode("utf-8")
             return 200, "application/json; charset=utf-8", body
         if path == "/api/lines":
+            if not self._authorized(headers, query):
+                return (
+                    401,
+                    "application/json; charset=utf-8",
+                    json.dumps({"error": "api key required"}).encode("utf-8"),
+                )
             try:
                 filt = parse_ledger_filter(query)
                 if self.demo:
                     payload = _demo_payload(filt)
                 else:
-                    payload = fetch_ledger(self.store, filt, dialect=self.dialect)
+                    payload = fetch_ledger(
+                        self.store, filt, dialect=self.dialect, source=self.source
+                    )
             except ValueError as exc:
                 return (
                     400,
@@ -185,7 +217,8 @@ def make_handler(app: LedgerApp):
         def do_GET(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
             query = {key: _first(vals) for key, vals in parse_qs(parsed.query).items()}
-            status, content_type, body = app.handle(self.command, parsed.path, query)
+            headers = {key: value for key, value in self.headers.items()}
+            status, content_type, body = app.handle(self.command, parsed.path, query, headers)
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Cache-Control", "no-store")
@@ -226,3 +259,11 @@ def port_from_env(default: int = 8080) -> int:
     if not raw:
         return default
     return int(raw)
+
+
+def source_from_env() -> str:
+    return ledger_source(os.environ.get("LEDGER_SOURCE"))
+
+
+def api_key_from_env() -> str | None:
+    return os.environ.get("LEDGER_API_KEY", "").strip() or None
