@@ -1,0 +1,125 @@
+"""CLI: python -m acfo auth|sync|divisions|init-db"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from datetime import date
+from pathlib import Path
+
+from acfo.config import load_settings
+from acfo.exact_client import ExactClient
+from acfo.mysql_store import MySQLStore
+from acfo.oauth import ExactOAuth, OAuthError
+from acfo.sync import sync_transactions
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Download Exact Online financial transactions into MySQL."
+    )
+    parser.add_argument("--env-file", default=None, help="Optional .env path")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    auth = sub.add_parser("auth", help="Authorize the Exact Online app and store tokens")
+    auth.add_argument("--force-login", action="store_true")
+    auth.add_argument("--code", help="Authorization code if you already have it")
+    auth.add_argument("--redirected-url", help="Full URL Exact redirected to after login")
+
+    sync = sub.add_parser("sync", help="Download transaction lines into MySQL")
+    sync.add_argument("--full", action="store_true", help="Ignore stored timestamps and resync")
+    sync.add_argument("--from-date", help="First load from this date (YYYY-MM-DD)")
+    sync.add_argument("--batch-size", type=int, default=200)
+
+    sub.add_parser("divisions", help="List Exact Online divisions the token can access")
+    sub.add_parser("init-db", help="Create MySQL tables from sql/schema.sql")
+
+    args = parser.parse_args(argv)
+    settings = load_settings(args.env_file)
+    oauth = ExactOAuth(settings)
+
+    if args.command == "auth":
+        return _auth(oauth, args)
+    if args.command == "init-db":
+        return _init_db(settings)
+    client = ExactClient(settings, oauth)
+    if args.command == "divisions":
+        return _divisions(client)
+    if args.command == "sync":
+        from_date = date.fromisoformat(args.from_date) if args.from_date else None
+        store = MySQLStore(settings)
+        try:
+            result = sync_transactions(
+                client,
+                store,
+                full=args.full,
+                from_date=from_date,
+                batch_size=args.batch_size,
+                progress=print,
+            )
+        finally:
+            store.close()
+        print(
+            f"Done. upserted={result.upserted} deleted={result.deleted} "
+            f"line_ts={result.last_line_timestamp} deleted_ts={result.last_deleted_timestamp}"
+        )
+        return 0
+    raise AssertionError(args.command)
+
+
+def _auth(oauth: ExactOAuth, args: argparse.Namespace) -> int:
+    try:
+        if args.code:
+            oauth.exchange_code(args.code)
+        elif args.redirected_url:
+            oauth.exchange_code(oauth.extract_code(args.redirected_url))
+        else:
+            url = oauth.authorization_url(force_login=args.force_login)
+            print("Open this URL, sign in to Exact Online, and approve the app:")
+            print(url)
+            print()
+            print(
+                "Exact will redirect to your registered HTTPS URI. "
+                "Paste that full redirected URL here (it contains ?code=...)."
+            )
+            redirected = input("Redirected URL: ").strip()
+            oauth.exchange_code(oauth.extract_code(redirected))
+    except (OAuthError, EOFError) as exc:
+        print(f"Authorization failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Tokens saved to {oauth.settings.token_file}")
+    return 0
+
+
+def _schema_path() -> Path:
+    candidates = [
+        Path(__file__).resolve().parents[2] / "sql" / "schema.sql",
+        Path.cwd() / "sql" / "schema.sql",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError("sql/schema.sql not found; run from the repo root or keep sql/ next to the package.")
+
+
+def _init_db(settings) -> int:
+    schema_path = _schema_path()
+    store = MySQLStore(settings)
+    try:
+        store.apply_schema(schema_path.read_text(encoding="utf-8"))
+    finally:
+        store.close()
+    print(f"Applied {schema_path}")
+    return 0
+
+
+def _divisions(client: ExactClient) -> int:
+    current = client.current_division()
+    print(f"Current division: {current}")
+    for row in client.divisions():
+        print(f"{row.get('Code')}\t{row.get('HID')}\t{row.get('Description')}\tstatus={row.get('Status')}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
