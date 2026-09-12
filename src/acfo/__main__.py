@@ -1,4 +1,4 @@
-"""CLI: python -m acfo auth|sync|divisions|init-db"""
+"""CLI: python -m acfo auth|sync|divisions|init-db|web"""
 
 from __future__ import annotations
 
@@ -40,7 +40,18 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("divisions", help="List Exact Online divisions the token can access")
     sub.add_parser("init-db", help="Create MySQL tables from sql/schema.sql")
 
+    web = sub.add_parser("web", help="Serve the SQL ledger web view")
+    web.add_argument("--host", default="127.0.0.1")
+    web.add_argument("--port", type=int, default=None, help="Default 8080, or $PORT")
+    web.add_argument(
+        "--demo",
+        action="store_true",
+        help="Sample rows only; no database required",
+    )
+
     args = parser.parse_args(argv)
+    if args.command == "web":
+        return _web(args)
     settings = load_settings(args.env_file)
     oauth = open_oauth(settings)
 
@@ -133,6 +144,31 @@ def _sync_divisions(client: ExactClient, all_divisions: bool) -> list[int]:
     rows = client.divisions()
     codes = [int(row["Code"]) for row in rows if row.get("Code") is not None]
     return codes or [client.division]
+
+
+def _web(args: argparse.Namespace) -> int:
+    from acfo.webview import LedgerApp, find_ledger_html, port_from_env, run_server
+
+    settings = load_settings(args.env_file, require_exact=False)
+    store = None
+    demo = args.demo
+    dialect = "postgres" if settings.uses_postgres else "mysql"
+    if not demo:
+        try:
+            store = open_store(settings)
+            store.connect()
+        except Exception as exc:
+            print(f"SQL not available ({exc}); serving demo rows.", file=sys.stderr)
+            store = None
+            demo = True
+    app = LedgerApp(
+        store,
+        html_path=find_ledger_html(_repo_root()),
+        dialect=dialect,
+        demo=demo,
+    )
+    run_server(app, host=args.host, port=args.port if args.port is not None else port_from_env())
+    return 0
 
 
 def _divisions(client: ExactClient) -> int:

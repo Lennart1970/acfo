@@ -2,15 +2,17 @@
 
 ## Goal
 
-Get Exact Online **entries** (grootboekmutaties) into a store we control, then ask questions and later hand **work orders** to Microsoft administrators for Copilot / Teams.
+Pipeline: **Exact Online → Invantive SQL → SQL → web view**.
 
-We are **not** connected to Exact, Supabase, or Railway until you add credentials.
+Exact is the source. Invantive (or `acfo`) is the SQL engine over Sync/Deleted. The web view reads that SQL — Invantive App Online / Bridge Online, or `python -m acfo web` on the Supabase replica.
+
+We are **not** connected to Exact, Invantive, Supabase, or Railway until you add credentials.
 
 ## Phases
 
 | Phase | What | Who |
 | --- | --- | --- |
-| **1 — MVP (now)** | Exact Sync → Railway cron → Supabase Postgres. Read via PostgREST / SQL. Work-order rows live in Supabase so MS admins have a queue. | You + Cursor |
+| **1 — MVP (now)** | Exact Sync → Railway cron → Supabase Postgres → web view (`acfo web` or Invantive App Online). Work-order rows live in Supabase so MS admins have a queue. | You + Cursor |
 | **2 — Copilot** | Microsoft admins execute `work_orders` (WO-001…): Copilot Studio tool on PostgREST, not live Exact, not org-wide Supabase MCP. | Microsoft administrators |
 | **3 — Optional** | Replica to Azure SQL if they want native Copilot *knowledge* instead of a tool. Supabase stays source of truth for the MVP. | Microsoft administrators |
 
@@ -29,6 +31,9 @@ Supabase
     ├── transaction_lines_incremental  (view, security_invoker)
     ├── work_orders                    (queue for MS admins)
     └── oauth_tokens / sync_state      (not exposed to Copilot)
+    │
+    ▼
+Web view  (`python -m acfo web` or App Online / Bridge Online)
 ```
 
 ## Why this stack
@@ -37,7 +42,7 @@ Supabase
 - **Supabase** — Postgres + RLS + PostgREST without standing up a DB. Better than MySQL for Invantive *and* for a later HTTP tool.
 - **Railway** — one scheduled job, no always-on server. Use the **session pooler** (`pooler.supabase.com:5432`), not transaction mode (prepared statements / session state).
 
-Excel that is **not** in Exact can be loaded with the same Data Hub + `@pg` connection via `exceltable` ([invantive/excel-to-supabase.md](../invantive/excel-to-supabase.md)). That job runs on the PC that sees the .xlsx, not on Railway.
+Playbook: [invantive/exact-sql-webview.md](../invantive/exact-sql-webview.md). App Online SQL: [invantive/app-online-ledger.sql](../invantive/app-online-ledger.sql). Local/Railway web view: `python -m acfo web`. Excel is not in this path.
 
 ## Out of scope for MVP
 

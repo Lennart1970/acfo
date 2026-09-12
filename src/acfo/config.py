@@ -40,7 +40,7 @@ class Settings:
         return bool(self.database_url)
 
 
-def load_settings(env_file: str | Path | None = None) -> Settings:
+def load_settings(env_file: str | Path | None = None, *, require_exact: bool = True) -> Settings:
     load_dotenv(env_file)
     region = os.getenv("EXACT_REGION", "nl").lower()
     if region not in REGIONS:
@@ -48,9 +48,9 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
         raise ValueError(f"Unknown EXACT_REGION={region!r}. Use one of: {known}")
     division_raw = os.getenv("EXACT_DIVISION", "").strip()
     return Settings(
-        client_id=_required("EXACT_CLIENT_ID"),
-        client_secret=_required("EXACT_CLIENT_SECRET"),
-        redirect_uri=_required("EXACT_REDIRECT_URI"),
+        client_id=_required("EXACT_CLIENT_ID") if require_exact else os.getenv("EXACT_CLIENT_ID", "").strip(),
+        client_secret=_required("EXACT_CLIENT_SECRET") if require_exact else os.getenv("EXACT_CLIENT_SECRET", "").strip(),
+        redirect_uri=_required("EXACT_REDIRECT_URI") if require_exact else os.getenv("EXACT_REDIRECT_URI", "https://localhost/callback"),
         region=region,
         base_url=REGIONS[region],
         division=int(division_raw) if division_raw else None,

@@ -1,5 +1,7 @@
 # Invantive: Excel → Supabase
 
+**Not the Exact pipeline.** Exact Online → Invantive → SQL → web view is [exact-sql-webview.md](exact-sql-webview.md). This file is only for workbooks that are **not** in Exact.
+
 Invantive does **not** need an “Excel database provider” for this. Excel is a **file**. Invantive SQL reads it with `exceltable`, then `create or replace table …@pg` writes **PostgreSQL**. Supabase is that Postgres.
 
 We are not connected to Invantive or your Supabase from this environment. You still need Data Hub (or Query Tool) on a machine that can **see the .xlsx**.

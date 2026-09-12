@@ -1,21 +1,26 @@
 # acfo
 
-MVP: **Cursor** builds Exact Online sync → **Railway** cron runs it → **Supabase** holds entries and Microsoft **work orders**. Copilot comes later via those work orders.
+Pipeline: **Exact Online → Invantive SQL → SQL → web view**.
 
-Intent: [docs/intent.md](docs/intent.md) · Railway: [docs/railway.md](docs/railway.md) · Work orders: [work-orders/](work-orders/README.md)
+Exact is the source. Invantive (Query Tool / Data Hub / App Online) turns Sync + Deleted into SQL. The web view reads that SQL — Invantive App Online or Bridge Online, or this repo’s ledger on the Supabase replica.
+
+MVP if you drop Invantive from the middle: **Cursor** builds the sync → **Railway** cron runs it → **Supabase** holds entries → `python -m acfo web`. Copilot comes later via work orders.
+
+Intent: [docs/intent.md](docs/intent.md) · Playbook: [invantive/exact-sql-webview.md](invantive/exact-sql-webview.md) · Railway: [docs/railway.md](docs/railway.md) · Work orders: [work-orders/](work-orders/README.md)
 
 ```bash
 export DATABASE_URL='postgresql://postgres.<ref>:<pw>@…pooler.supabase.com:5432/postgres'
 python -m acfo init-db
 python -m acfo auth
 python -m acfo sync
+python -m acfo web
 ```
 
 Exact Online has no dump. Invantive Data Hub can still load Incremental tables if you prefer that over `acfo`. Copilot should not query Exact live. See [docs/copilot.md](docs/copilot.md).
 
-## Invantive is the better alternative (if you have a license)
+## Invantive is the SQL in the middle (if you have a license)
 
-Invantive already does this job. `TransactionLinesIncremental` is Exact Sync + Deleted, cached. Data Hub can write that replica straight to MySQL:
+Invantive already does this job. You write SQL; the web view is App Online, Bridge Online, or a copy in Supabase. `TransactionLinesIncremental` is Exact Sync + Deleted, cached. Data Hub can write that replica to SQL:
 
 ```sql
 use all@eol
@@ -97,8 +102,9 @@ Official index: [REST API resources](https://start.exactonline.nl/docs/HlpRestAP
 
 1. `auth` — exchange an OAuth code and store rotating tokens in `.tokens.json`
 2. `init-db` — create `transaction_lines`, `deleted_entities`, `sync_state`
-3. `sync` — incremental Sync + Deleted → MySQL
-4. `divisions` — list administrations the token can access
+3. `sync` — incremental Sync + Deleted → SQL
+4. `web` — ledger web view on that SQL (`--demo` needs no database)
+5. `divisions` — list administrations the token can access
 
 `transaction_lines` stores the Sync payload as posted in Exact (amounts, VAT, journal, GL account, relation, period, type). Query `transaction_lines_incremental` for the live replica (deleted rows removed). Bank bookings, sales, purchase, and memorial entries are all transaction lines; filter on `type` or `journal_code`. Type `40` is cash flow / bank.
 
@@ -125,6 +131,7 @@ Or point `.env` at an existing server, then:
 python -m acfo init-db
 python -m acfo auth
 python -m acfo sync
+python -m acfo web
 ```
 
 First load from a date (uses SyncTimestamp, or Bulk if that call is unavailable):
@@ -151,8 +158,9 @@ Example reporting SQL is in `sql/example_queries.sql`.
 
 ## Alternatives (no Python)
 
-- **Invantive Data Hub → MySQL** (recommended if licensed): [`invantive/`](invantive/README.md)
-- Exact Online → Excel/CSV export (manual, not incremental)
+- **Invantive SQL → App Online / Bridge Online** (the web view, no replica): [`invantive/exact-sql-webview.md`](invantive/exact-sql-webview.md)
+- **Invantive Data Hub → Postgres / MySQL** then this web view: [`invantive/`](invantive/README.md)
+- Exact Online → Excel/CSV export (manual, not incremental; not this pipeline)
 - Hosted ELT (Peliqan, Airbyte-style connectors)
 
 ## Tests

@@ -1,4 +1,11 @@
-# Invantive as the Exact Online → MySQL path
+# Invantive: Exact Online → SQL → web view
+
+The pipeline is **Exact Online → Invantive → SQL → web view**. See [exact-sql-webview.md](exact-sql-webview.md). App Online query: [app-online-ledger.sql](app-online-ledger.sql).
+
+- **Virtual SQL + Invantive web:** Cloud database → Bridge Online OData or App Online HTML.
+- **Your SQL + your web:** Data Hub copies Incremental tables to Supabase → `python -m acfo web` / PostgREST / Table Editor.
+
+# Invantive as the Exact Online → MySQL / Postgres path
 
 Invantive is the stronger alternative if you still have (or want) a license. It already speaks Exact’s Sync APIs, hides the Timestamp/Deleted pitfalls, and can write MySQL. The Python `acfo` CLI in this repo is the self-hosted fallback when you do not want that subscription.
 

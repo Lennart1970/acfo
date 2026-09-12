@@ -5,6 +5,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 COPY supabase ./supabase
 COPY sql ./sql
+COPY web ./web
 
 RUN pip install --no-cache-dir .
 

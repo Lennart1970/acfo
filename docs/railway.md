@@ -31,3 +31,13 @@ python -m acfo sync --from-date 2024-01-01
 Then Railway cron continues incrementally.
 
 Alternatively apply schema with `supabase db push` against the linked project, then `auth` + `sync` locally once.
+
+## Web view (second service)
+
+The cron service **must exit**. Serve the ledger as a **separate** always-on Railway service (no cron), same repo, command:
+
+```bash
+python -m acfo web --host 0.0.0.0 --port $PORT
+```
+
+Same `DATABASE_URL`. Open `/` for grootboekmutaties. Invantive-native alternative: App Online / Bridge Online on Incremental SQL — no Railway web process.
