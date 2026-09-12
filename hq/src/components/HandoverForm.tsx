@@ -1,22 +1,28 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { handoverPlanAction } from "@/app/actions";
 import { parsePlan } from "@/lib/parse-plan";
 import type { ParsedJob } from "@/lib/types";
 
 type ProjectOption = { slug: string; name: string };
 
+const SAMPLE_PLAN = `## Fix Railway cron
+Keep OAuth tokens in Supabase, not ephemeral disk.
+
+## Seed WO-005
+Add the Power Platform work order to the dashboard queue.`;
+
 export function HandoverForm({ projects }: { projects: ProjectOption[] }) {
   const router = useRouter();
-  const [markdown, setMarkdown] = useState("");
-  const [planTitle, setPlanTitle] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
+  const markdownRef = useRef<HTMLTextAreaElement>(null);
   const [projectSlug, setProjectSlug] = useState(projects[0]?.slug ?? "");
   const [jobs, setJobs] = useState<ParsedJob[]>([]);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [postSlack, setPostSlack] = useState(true);
-  const [launchCursor, setLaunchCursor] = useState(true);
+  const [launchCursor, setLaunchCursor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -25,22 +31,41 @@ export function HandoverForm({ projects }: { projects: ProjectOption[] }) {
     [jobs, selected],
   );
 
+  function readPlan() {
+    return {
+      planTitle: titleRef.current?.value.trim() ?? "",
+      markdown: markdownRef.current?.value ?? "",
+    };
+  }
+
   function onParse() {
+    const { markdown } = readPlan();
     const parsed = parsePlan(markdown);
     setJobs(parsed);
     setSelected(Object.fromEntries(parsed.map((_, index) => [index, true])));
     setError(parsed.length === 0 ? "No jobs found in that plan." : null);
   }
 
+  function onLoadSample() {
+    if (titleRef.current) titleRef.current.value = "MVP leftovers";
+    if (markdownRef.current) markdownRef.current.value = SAMPLE_PLAN;
+    const parsed = parsePlan(SAMPLE_PLAN);
+    setJobs(parsed);
+    setSelected(Object.fromEntries(parsed.map((_, index) => [index, true])));
+    setError(null);
+  }
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    const { planTitle, markdown } = readPlan();
+    const parsed = jobs.length > 0 ? selectedJobs : parsePlan(markdown);
     setPending(true);
     setError(null);
     const result = await handoverPlanAction({
       projectSlug,
       planTitle,
       markdown,
-      jobs: selectedJobs,
+      jobs: parsed,
       postSlack,
       launchCursor,
     });
@@ -63,8 +88,8 @@ export function HandoverForm({ projects }: { projects: ProjectOption[] }) {
       <label className="block">
         <span className="mb-1 block text-sm font-medium">Plan title</span>
         <input
-          value={planTitle}
-          onChange={(event) => setPlanTitle(event.target.value)}
+          ref={titleRef}
+          name="planTitle"
           className="w-full rounded-lg border border-line bg-card px-3 py-2"
           placeholder="Week of 12 Sep — Exact sync leftovers"
         />
@@ -88,8 +113,8 @@ export function HandoverForm({ projects }: { projects: ProjectOption[] }) {
       <label className="block">
         <span className="mb-1 block text-sm font-medium">Paste the plan</span>
         <textarea
-          value={markdown}
-          onChange={(event) => setMarkdown(event.target.value)}
+          ref={markdownRef}
+          name="markdown"
           rows={12}
           className="w-full rounded-lg border border-line bg-card px-3 py-2 font-mono text-sm"
           placeholder={"## Fix Railway cron\nKeep tokens in Supabase.\n\n## Seed WO-005\nAdd the Power Platform work order to the migration."}
@@ -97,6 +122,13 @@ export function HandoverForm({ projects }: { projects: ProjectOption[] }) {
       </label>
 
       <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onLoadSample}
+          className="rounded-full border border-line bg-card px-4 py-2 text-sm"
+        >
+          Load sample plan
+        </button>
         <button
           type="button"
           onClick={onParse}
@@ -151,10 +183,12 @@ export function HandoverForm({ projects }: { projects: ProjectOption[] }) {
 
       <button
         type="submit"
-        disabled={pending || selectedJobs.length === 0}
+        disabled={pending}
         className="rounded-full bg-green px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
       >
-        {pending ? "Handing over…" : `Hand over ${selectedJobs.length || "selected"} job${selectedJobs.length === 1 ? "" : "s"}`}
+        {pending
+          ? "Handing over…"
+          : `Hand over ${selectedJobs.length || "parsed"} job${selectedJobs.length === 1 ? "" : "s"}`}
       </button>
     </form>
   );
