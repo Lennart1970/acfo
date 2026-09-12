@@ -19,7 +19,9 @@ LEDGER_COLUMNS: tuple[str, ...] = (
     "account_name",
     "description",
     "amount_dc",
+    "vat_code",
     "type",
+    "line_type",
     "division",
 )
 

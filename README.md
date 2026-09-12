@@ -6,7 +6,7 @@ Exact is the source. Invantive (Query Tool / Data Hub / App Online) turns Sync +
 
 MVP if you drop Invantive from the middle: **Cursor** builds the sync → **Railway** cron runs it → **Supabase** holds entries → `python -m acfo web`. Copilot comes later via work orders.
 
-Intent: [docs/intent.md](docs/intent.md) · **Deploy: [docs/deployment-plan.md](docs/deployment-plan.md)** · Playbook: [invantive/exact-sql-webview.md](invantive/exact-sql-webview.md) · Railway: [docs/railway.md](docs/railway.md) · Work orders: [work-orders/](work-orders/README.md) · Review skill: [.cursor/skills/review-transactions](.cursor/skills/review-transactions/SKILL.md)
+Intent: [docs/intent.md](docs/intent.md) · **Deploy: [docs/deployment-plan.md](docs/deployment-plan.md)** · Playbook: [invantive/exact-sql-webview.md](invantive/exact-sql-webview.md) · Railway: [docs/railway.md](docs/railway.md) · Work orders: [work-orders/](work-orders/README.md) · Review skill: [.cursor/skills/booking-weekoverzicht](.cursor/skills/booking-weekoverzicht/SKILL.md)
 
 ```bash
 export DATABASE_URL='postgresql://postgres.<ref>:<pw>@…pooler.supabase.com:5432/postgres'

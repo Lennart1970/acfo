@@ -52,9 +52,21 @@ Generate a public domain in Railway → Settings → Networking. Open `https://<
 
 Check: `curl -H "X-Api-Key: $KEY" "https://<domain>/api/lines?type=40&limit=5"`.
 
-## Stage 3 — Review with the skill
+## Stage 3 — Review with booking-weekoverzicht
 
-`.cursor/skills/review-transactions/SKILL.md` runs against the same SQL or `/api/lines`. In Cursor: “review last month’s bank transactions”. The skill checks balance per booking, missing GL, VAT sanity, duplicates, old open items, and freshness. It never writes.
+The skill from Drive (`booking-weekoverzicht.zip`) lives at `.cursor/skills/booking-weekoverzicht/`. It scores **inkoopdagboek 40/41** (not Exact Type 40 bank). Python scores; the model does not invent GL/btw/bedrag.
+
+Against the replica (after Stage 2):
+
+```bash
+export LEDGER_URL=https://<railway-domain>
+export LEDGER_API_KEY=…
+python3 .cursor/skills/booking-weekoverzicht/scripts/review_week.py --from-sql --json
+# then, after the user picks a week:
+python3 .cursor/skills/booking-weekoverzicht/scripts/review_week.py --from-sql --week 2026-W23 --output Weekoverzicht-2026-W23.xlsx --json
+```
+
+Without SQL: upload Invantive `gmr-eol-transaction-lines.xlsx` and pass `--input`. Same grouping: Boekingnummer, factuurbedrag = abs(crediteurenregel 1300), kostenregel for GL/btw. Routes: Auto / AI Review / Human Review.
 
 ## Stage 4 — Power Platform
 

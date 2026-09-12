@@ -42,7 +42,7 @@ Web view  (`python -m acfo web` or App Online / Bridge Online)
 - **Supabase** — Postgres + RLS + PostgREST without standing up a DB. Better than MySQL for Invantive *and* for a later HTTP tool.
 - **Railway** — one scheduled job, no always-on server. Use the **session pooler** (`pooler.supabase.com:5432`), not transaction mode (prepared statements / session state).
 
-Playbook: [invantive/exact-sql-webview.md](../invantive/exact-sql-webview.md). App Online SQL: [invantive/app-online-ledger.sql](../invantive/app-online-ledger.sql). Local/Railway web view: `python -m acfo web`. Excel is not in this path.
+Playbook: [invantive/exact-sql-webview.md](../invantive/exact-sql-webview.md). App Online SQL: [invantive/app-online-ledger.sql](../invantive/app-online-ledger.sql). Local/Railway web view: `python -m acfo web`. Review: [booking-weekoverzicht](../.cursor/skills/booking-weekoverzicht/SKILL.md) (inkoop 40/41). Excel upload is only a fallback for that skill, not the extract path.
 
 ## Out of scope for MVP
 
