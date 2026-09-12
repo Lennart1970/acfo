@@ -37,6 +37,8 @@ Supabase
 - **Supabase** — Postgres + RLS + PostgREST without standing up a DB. Better than MySQL for Invantive *and* for a later HTTP tool.
 - **Railway** — one scheduled job, no always-on server. Use the **session pooler** (`pooler.supabase.com:5432`), not transaction mode (prepared statements / session state).
 
+Excel that is **not** in Exact can be loaded with the same Data Hub + `@pg` connection via `exceltable` ([invantive/excel-to-supabase.md](../invantive/excel-to-supabase.md)). That job runs on the PC that sees the .xlsx, not on Railway.
+
 ## Out of scope for MVP
 
 - Live Exact calls from Copilot

@@ -46,6 +46,8 @@ Data Hub talks to one platform per connection unless you bundle them. Put `setti
 - `@mysql` = your MySQL (`MySql`; install [Invantive’s MySQL driver](https://support.invantive.com/download-driver-mysql))
 - `@pg` = PostgreSQL / **Supabase** (`PostgreSql`; host `db.<project>.supabase.co`, SSL, database password — not the anon key)
 
+Excel files are **not** a settings.xml provider. Data Hub reads them with `exceltable` and writes `@pg`. See [excel-to-supabase.md](excel-to-supabase.md).
+
 You still need an Exact **App Center** Client ID. Invantive can use their redirect `https://clientredirect.invantive.com`. Add `client-secret=...` and a TOTP secret if Exact requires 2FA.
 
 ### 2. First copy (small/medium administrations)
