@@ -12,7 +12,7 @@ Exact Online does not expose a MySQL dump. The supported way to get an exact cop
 | 2 | OAuth authorization-code flow | Access tokens last **10 minutes**. Refresh tokens last up to **1 year** and **rotate on every refresh** — always persist the new refresh token. |
 | 3 | `GET /api/v1/current/Me?$select=CurrentDivision` | Every later URL needs a division (administratie) id. |
 | 4 | `GET /api/v1/{division}/sync/Financial/TransactionLines?$filter=Timestamp gt {ts}L` | Official incremental API. **1000 rows/call**. Timestamp is a row version, not a clock. |
-| 5 | `GET /api/v1/{division}/sync/Deleted?$filter=Timestamp gt {ts}L and EntityType eq 1` | Sync does **not** return deletions. `EntityType = 1` is transaction lines; `EntityKey` is the original line `ID`. |
+| 5 | `GET /api/v1/{division}/sync/Deleted?$filter=Timestamp gt {ts}L` | Sync does **not** return deletions. Keep rows whose `EntityType` is `1` or `TransactionLines`. `EntityKey` is the original line `ID`. |
 | 6 | Upsert into MySQL by `id`; soft-delete when Deleted reports the key | Keeps MySQL equal to Exact after corrections. |
 
 Do **not** use the old `/financialtransaction/Transactions` endpoint (deprecated). The 60-row `/financialtransaction/TransactionLines` endpoint is the same data but much slower.

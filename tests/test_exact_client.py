@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 
 from acfo.config import Settings
-from acfo.exact_client import ExactClient, _retry_after
+from acfo.exact_client import ExactClient, is_transaction_line_deletion, _retry_after
 from acfo.oauth import ExactOAuth, TokenSet
 
 
@@ -73,12 +73,32 @@ def test_iter_odata_follows_next_and_uses_timestamp_filter(tmp_path):
     assert session.calls[1]["params"] is None
 
 
-def test_deleted_filter_uses_entity_type_1(tmp_path):
-    session = _FakeSession([_FakeResponse({"d": {"results": []}})])
+def test_deleted_filter_is_timestamp_only_then_filtered_locally(tmp_path):
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                {
+                    "d": {
+                        "results": [
+                            {"ID": "keep", "EntityType": 1, "Timestamp": 4},
+                            {"ID": "skip", "EntityType": 2, "Timestamp": 5},
+                            {"ID": "named", "EntityType": "TransactionLines", "Timestamp": 6},
+                        ]
+                    }
+                }
+            )
+        ]
+    )
     client = _client(tmp_path, session)
-    list(client.sync_deleted_transaction_lines(3))
-    assert "EntityType eq 1" in session.calls[0]["params"]["$filter"]
-    assert "Timestamp gt 3L" in session.calls[0]["params"]["$filter"]
+    rows = list(client.sync_deleted_transaction_lines(3))
+    assert session.calls[0]["params"]["$filter"] == "Timestamp gt 3L"
+    assert [row["ID"] for row in rows] == ["keep", "named"]
+
+
+def test_is_transaction_line_deletion():
+    assert is_transaction_line_deletion({"EntityType": 1})
+    assert is_transaction_line_deletion({"EntityType": "TransactionLines"})
+    assert not is_transaction_line_deletion({"EntityType": 2})
 
 
 def test_retry_after_milliseconds():

@@ -11,7 +11,7 @@ import requests
 from acfo.config import Settings
 from acfo.dates import odata_datetime
 from acfo.oauth import ExactOAuth, TokenSet
-from acfo.types import DELETED_ENTITY_TYPE_TRANSACTION_LINES
+from acfo.types import DELETED_TRANSACTION_LINE_TYPES
 
 TRANSACTION_LINE_SELECT = ",".join(
     [
@@ -115,15 +115,15 @@ class ExactClient:
         }
         yield from self.iter_odata(path, params)
 
-    def sync_deleted_transaction_lines(self, timestamp: int) -> Iterator[dict[str, Any]]:
+    def sync_deleted(self, timestamp: int) -> Iterator[dict[str, Any]]:
         path = f"/api/v1/{self.division}/sync/Deleted"
-        params = {
-            "$filter": (
-                f"Timestamp gt {int(timestamp)}L and "
-                f"EntityType eq {DELETED_ENTITY_TYPE_TRANSACTION_LINES}"
-            )
-        }
+        params = {"$filter": f"Timestamp gt {int(timestamp)}L"}
         yield from self.iter_odata(path, params)
+
+    def sync_deleted_transaction_lines(self, timestamp: int) -> Iterator[dict[str, Any]]:
+        for record in self.sync_deleted(timestamp):
+            if is_transaction_line_deletion(record):
+                yield record
 
     def bulk_transaction_lines_from(self, from_date: Any) -> Iterator[dict[str, Any]]:
         path = f"/api/v1/{self.division}/bulk/Financial/TransactionLines"
@@ -214,6 +214,10 @@ class ExactClient:
                 self.sleeper(2)
         except ValueError:
             return
+
+
+def is_transaction_line_deletion(record: dict[str, Any]) -> bool:
+    return record.get("EntityType") in DELETED_TRANSACTION_LINE_TYPES
 
 
 def _retry_after(response: requests.Response, default: int) -> int:

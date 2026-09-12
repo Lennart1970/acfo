@@ -64,7 +64,11 @@ TRANSACTION_TYPES: dict[int, str] = {
 }
 
 # Sync/Deleted EntityType for financial transaction lines.
+# Exact documents this as integer 1; some payloads use the entity name.
 DELETED_ENTITY_TYPE_TRANSACTION_LINES = 1
+DELETED_TRANSACTION_LINE_TYPES: frozenset[object] = frozenset(
+    {1, "1", "TransactionLines"}
+)
 
 STATUS_OPEN = 20
 STATUS_PROCESSED = 50
