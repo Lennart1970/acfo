@@ -122,7 +122,7 @@ def test_copilot_zip_layout_matches_dagoverzicht():
     root = Path(__file__).resolve().parents[1]
     zpath = root / "acfo" / "copilot-skills" / "booking-weekoverzicht-v2.zip"
     names = ZipFile(zpath).namelist()
-    skill = (root / "acfo" / "copilot-skills" / "booking-weekoverzicht" / "SKILL.md").read_text(encoding="utf-8")
+    skill = (root / "acfo" / "copilot-skills" / "booking-weekoverzicht-v2" / "SKILL.md").read_text(encoding="utf-8")
     assert "name: booking-weekoverzicht-v2" in skill
     assert "SKILL.md" in names
     assert "scripts/review_week.py" in names

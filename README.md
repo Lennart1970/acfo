@@ -4,7 +4,7 @@ Workspace voor aCFO booking-check skills. **v2** reviewt Exact-inkoopboekingen v
 
 ## v2 — weekoverzicht uit Excel-upload
 
-Skill: [`acfo/copilot-skills/booking-weekoverzicht/`](acfo/copilot-skills/booking-weekoverzicht/) (`name: booking-weekoverzicht-v2`). Upload [`booking-weekoverzicht-v2.zip`](acfo/copilot-skills/booking-weekoverzicht-v2.zip) in Copilot Studio (zelfde layout als `booking-dagoverzicht.zip`: `SKILL.md` in de zip-root). Gebruik dit nieuwe bestand; de oude `booking-weekoverzicht.zip` kan in cache blijven hangen.
+Skill: [`acfo/copilot-skills/booking-weekoverzicht-v2/`](acfo/copilot-skills/booking-weekoverzicht-v2/). Upload [`booking-weekoverzicht-v2.zip`](acfo/copilot-skills/booking-weekoverzicht-v2.zip) in Copilot Studio (zelfde layout als `booking-dagoverzicht.zip`: `SKILL.md` in de zip-root).
 
 Flow:
 

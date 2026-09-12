@@ -5,6 +5,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 *.xlsx
-!acfo/copilot-skills/booking-weekoverzicht/fixtures/*.xlsx
+!acfo/copilot-skills/booking-weekoverzicht-v2/fixtures/*.xlsx
 .env
 .DS_Store

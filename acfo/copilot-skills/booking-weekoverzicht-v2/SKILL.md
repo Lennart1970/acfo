@@ -128,9 +128,9 @@ Exact wijzigen, crediteur aanmaken, LedgerBotje/`financial_purchase_*` aanroepen
 
 ## Bestanden in deze zip
 
-Skill-naam: `booking-weekoverzicht-v2` (nieuw t.o.v. de geweigerde `booking-weekoverzicht`-zip).
+Skill-naam: `booking-weekoverzicht-v2`.
 
-Zip-root (zelfde layout als `booking-dagoverzicht`; Copilot weigert een extra map eromheen):
+Zip-root (zelfde layout als `booking-dagoverzicht`; `SKILL.md` en `scripts/` in de zip-root):
 
 - `SKILL.md` — deze instructie
 - `scripts/confidence_core.py` — signaalwiskunde (geen netwerk)

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Package booking-weekoverzicht as a Copilot Studio skill zip.
+"""Package booking-weekoverzicht-v2 as a Copilot Studio skill zip.
 
 Copilot accepts the same layout as booking-dagoverzicht.zip:
 SKILL.md and scripts/ at the archive root. A nested
-booking-weekoverzicht/ folder makes the upload fail validation
+skill-name/ folder makes the upload fail validation
 (SKILL.md is not found at the zip root). Do not include fixtures.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = Path(__file__).resolve().parent
-SKILL = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht"
+SKILL = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht-v2"
 ZIP_PATH = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht-v2.zip"
 FILES = (
     "confidence_core.py",
@@ -71,8 +71,8 @@ def main() -> int:
         raise ValueError("zip must have SKILL.md at archive root (Copilot Studio)")
     if "SKILL.md" not in names:
         raise ValueError("zip must have SKILL.md at archive root (Copilot Studio)")
-    if any(name == "booking-weekoverzicht/SKILL.md" or name.startswith("booking-weekoverzicht/") for name in names):
-        raise ValueError("do not nest files under booking-weekoverzicht/")
+    if any(name.startswith("booking-weekoverzicht") and name.endswith("/SKILL.md") for name in names):
+        raise ValueError("do not nest SKILL.md under a skill folder")
     if any(name.endswith(".xlsx") for name in names):
         raise ValueError("do not pack Excel fixtures into the skill zip")
     print(f"packed {ZIP_PATH} ({', '.join(names)})")
