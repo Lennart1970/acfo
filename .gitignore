@@ -1,0 +1,14 @@
+.env
+.tokens.json
+supabase/.temp/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+dist/
+build/
+.mypy_cache/
+*.log

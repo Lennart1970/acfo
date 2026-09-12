@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grootboekmutaties</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --ink: #1c1916;
+      --muted: #6b645b;
+      --line: #d8d0c4;
+      --card: #fffdf8;
+      --accent: #1f4d3a;
+      --debit: #1f4d3a;
+      --credit: #8a2f1f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    header {
+      padding: 1.5rem 1.5rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--card);
+    }
+    header p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.92rem; }
+    h1 { margin: 0; font-size: 1.35rem; letter-spacing: 0.01em; }
+    form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+      gap: 0.75rem;
+      padding: 1rem 1.5rem;
+      align-items: end;
+    }
+    label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; color: var(--muted); }
+    input, select, button {
+      font: inherit;
+      padding: 0.45rem 0.55rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      cursor: pointer;
+    }
+    button.secondary { background: #fff; color: var(--ink); }
+    .meta {
+      padding: 0 1.5rem 0.75rem;
+      color: var(--muted);
+      display: flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .banner {
+      margin: 0 1.5rem 1rem;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid #e2c98a;
+      background: #fff6d8;
+      border-radius: 6px;
+      color: #5c4a16;
+      display: none;
+    }
+    .error {
+      margin: 0 1.5rem 1rem;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid #e3b6ad;
+      background: #fdeceb;
+      border-radius: 6px;
+      color: #6a261c;
+      display: none;
+    }
+    .table-wrap { overflow: auto; padding: 0 1.5rem 2rem; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); }
+    th, td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.neg { color: var(--credit); }
+    td.pos { color: var(--debit); }
+    tr:hover td { background: #faf6ee; }
+    .empty { padding: 2rem 1.5rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Grootboekmutaties</h1>
+    <p>Exact Online → Invantive / acfo → SQL → deze webview. Regel 0 (boekingskop) is weggelaten.</p>
+  </header>
+  <form id="filters">
+    <label>Van <input type="date" name="date_from"></label>
+    <label>Tot <input type="date" name="date_to"></label>
+    <label>Type
+      <select name="type">
+        <option value="">Alle</option>
+        <option value="20">20 verkoop</option>
+        <option value="30">30 inkoop</option>
+        <option value="40">40 bank / kas</option>
+      </select>
+    </label>
+    <label>Dagboek <input name="journal_code" placeholder="bijv. 90"></label>
+    <label>Grootboek <input name="gl_account_code" placeholder="bijv. 1300"></label>
+    <label>Zoek <input name="q" placeholder="omschrijving of relatie"></label>
+    <button type="submit">Toon</button>
+    <button type="button" class="secondary" id="bank">Alleen bank</button>
+    <button type="reset" class="secondary" id="reset">Wis</button>
+  </form>
+  <div class="banner" id="demo"></div>
+  <div class="error" id="error"></div>
+  <form class="error" id="keyform" style="display:none; align-items:end; gap:0.75rem;">
+    <label style="flex:1">API-sleutel (LEDGER_API_KEY)
+      <input type="password" name="api_key" autocomplete="off">
+    </label>
+    <button type="submit">Ontgrendel</button>
+  </form>
+  <div class="meta" id="meta">Laden…</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Dagboek</th>
+          <th class="num">Boeking</th>
+          <th>Grootboek</th>
+          <th>Relatie</th>
+          <th>Omschrijving</th>
+          <th class="num">Bedrag DC</th>
+          <th class="num">Type</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="empty" id="empty" hidden>Geen regels voor deze filters.</p>
+  </div>
+  <script>
+    const types = { 20: "verkoop", 30: "inkoop", 40: "bank/kas" };
+    const form = document.getElementById("filters");
+    const rowsEl = document.getElementById("rows");
+    const metaEl = document.getElementById("meta");
+    const emptyEl = document.getElementById("empty");
+    const demoEl = document.getElementById("demo");
+    const errorEl = document.getElementById("error");
+    const keyForm = document.getElementById("keyform");
+    const KEY = "acfo_ledger_api_key";
+
+    function apiKey() {
+      const fromUrl = new URLSearchParams(window.location.search).get("api_key");
+      if (fromUrl) {
+        sessionStorage.setItem(KEY, fromUrl);
+        history.replaceState(null, "", window.location.pathname);
+      }
+      return sessionStorage.getItem(KEY) || "";
+    }
+
+    function money(value) {
+      const n = Number(value);
+      return new Intl.NumberFormat("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    }
+
+    async function load() {
+      errorEl.style.display = "none";
+      const data = new FormData(form);
+      const params = new URLSearchParams();
+      for (const [key, value] of data.entries()) {
+        if (String(value).trim()) params.set(key, String(value).trim());
+      }
+      const headers = {};
+      const key = apiKey();
+      if (key) headers["X-Api-Key"] = key;
+      const response = await fetch("/api/lines?" + params.toString(), { headers });
+      if (response.status === 401) {
+        keyForm.style.display = "flex";
+        metaEl.textContent = "";
+        rowsEl.replaceChildren();
+        emptyEl.hidden = true;
+        return;
+      }
+      keyForm.style.display = "none";
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ error: response.statusText }));
+        errorEl.textContent = body.error || "Kon SQL-regels niet laden.";
+        errorEl.style.display = "block";
+        metaEl.textContent = "";
+        return;
+      }
+      const payload = await response.json();
+      demoEl.style.display = payload.demo ? "block" : "none";
+      demoEl.textContent = payload.demo
+        ? "Demogegevens. Koppel DATABASE_URL en start zonder --demo voor echte Exact-regels."
+        : "";
+      metaEl.innerHTML =
+        "<span>" + payload.count + " regels</span>" +
+        "<span>Som DC " + money(payload.amount_dc) + "</span>";
+      rowsEl.replaceChildren();
+      emptyEl.hidden = payload.rows.length > 0;
+      for (const row of payload.rows) {
+        const tr = document.createElement("tr");
+        const amount = Number(row.amount_dc);
+        tr.innerHTML =
+          "<td>" + (row.date || "") + "</td>" +
+          "<td>" + (row.journal_code || "") + "</td>" +
+          "<td class=\"num\">" + (row.entry_number ?? "") + "</td>" +
+          "<td>" + [row.gl_account_code, row.gl_account_description].filter(Boolean).join(" ") + "</td>" +
+          "<td>" + (row.account_name || "") + "</td>" +
+          "<td>" + (row.description || "") + "</td>" +
+          "<td class=\"num " + (amount < 0 ? "neg" : "pos") + "\">" + money(row.amount_dc) + "</td>" +
+          "<td class=\"num\">" + (row.type ?? "") + (types[row.type] ? " " + types[row.type] : "") + "</td>";
+        rowsEl.appendChild(tr);
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      load();
+    });
+    document.getElementById("bank").addEventListener("click", () => {
+      form.reset();
+      form.type.value = "40";
+      load();
+    });
+    document.getElementById("reset").addEventListener("click", () => {
+      window.setTimeout(load, 0);
+    });
+    keyForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      sessionStorage.setItem(KEY, keyForm.api_key.value.trim());
+      keyForm.api_key.value = "";
+      load();
+    });
+    load();
+  </script>
+</body>
+</html>

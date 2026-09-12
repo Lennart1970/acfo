@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copy to %USERPROFILE%\invantive\settings-acfo.xml (Windows)
+  or ~/invantive/settings-acfo.xml (Linux/macOS).
+
+  Data Hub / Query Tool merge every settings-*.xml in that folder.
+  Replace the *** placeholders. Do not commit a filled-in copy.
+-->
+<settings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+          version="5"
+          forcedefault="false">
+  <group name="acfo">
+    <connection name="exact-online-mysql">
+      <database order="10"
+                alias="eol"
+                provider="ExactOnlineAll"
+                defaultUserLogonCode="***EXACT_USER***"
+                defaultPassword="***EXACT_PASSWORD***"
+                connectionString="api-url=https://start.exactonline.nl;api-client-id=***CLIENT_ID***;api-client-secret=***CLIENT_SECRET***;api-redirect-url=https://clientredirect.invantive.com;totp-secret=***TOTP_SECRET***"
+                AllowConnectionStringRewrite="false"/>
+      <database alias="mysql"
+                provider="MySql"
+                connectionString="Server=127.0.0.1;Port=3306;Database=acfo;UID=acfo;PWD=***MYSQL_PASSWORD***;SslMode=Preferred"
+                AllowConnectionStringRewrite="false"/>
+      <!-- Optional: Supabase is Postgres. Use the database password, not the anon key.
+           Host: db.<project-ref>.supabase.co  Database: postgres  SSL required. -->
+      <!--
+      <database alias="pg"
+                provider="PostgreSql"
+                connectionString="Host=db.***PROJECT***.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=***DB_PASSWORD***;SSL Mode=Require"
+                AllowConnectionStringRewrite="false"/>
+      -->
+    </connection>
+  </group>
+</settings>
