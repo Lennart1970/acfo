@@ -99,6 +99,9 @@ class ExactClient:
             self._division = self.current_division()
         return self._division
 
+    def use_division(self, division: int) -> None:
+        self._division = int(division)
+
     def current_division(self) -> int:
         payload = self.get("/api/v1/current/Me", params={"$select": "CurrentDivision"})
         return int(payload["d"]["results"][0]["CurrentDivision"])

@@ -30,6 +30,11 @@ def main(argv: list[str] | None = None) -> int:
     sync.add_argument("--full", action="store_true", help="Ignore stored timestamps and resync")
     sync.add_argument("--from-date", help="First load from this date (YYYY-MM-DD)")
     sync.add_argument("--batch-size", type=int, default=200)
+    sync.add_argument(
+        "--all-divisions",
+        action="store_true",
+        help="Sync every division the token can access (Invantive-style loop)",
+    )
 
     sub.add_parser("divisions", help="List Exact Online divisions the token can access")
     sub.add_parser("init-db", help="Create MySQL tables from sql/schema.sql")
@@ -49,20 +54,26 @@ def main(argv: list[str] | None = None) -> int:
         from_date = date.fromisoformat(args.from_date) if args.from_date else None
         store = MySQLStore(settings)
         try:
-            result = sync_transactions(
-                client,
-                store,
-                full=args.full,
-                from_date=from_date,
-                batch_size=args.batch_size,
-                progress=print,
-            )
+            divisions = _sync_divisions(client, args.all_divisions)
+            totals = []
+            for division in divisions:
+                client.use_division(division)
+                print(f"=== division {division} ===")
+                totals.append(
+                    sync_transactions(
+                        client,
+                        store,
+                        full=args.full,
+                        from_date=from_date,
+                        batch_size=args.batch_size,
+                        progress=print,
+                    )
+                )
         finally:
             store.close()
-        print(
-            f"Done. upserted={result.upserted} deleted={result.deleted} "
-            f"line_ts={result.last_line_timestamp} deleted_ts={result.last_deleted_timestamp}"
-        )
+        upserted = sum(item.upserted for item in totals)
+        deleted = sum(item.deleted for item in totals)
+        print(f"Done. divisions={len(totals)} upserted={upserted} deleted={deleted}")
         return 0
     raise AssertionError(args.command)
 
@@ -111,6 +122,14 @@ def _init_db(settings) -> int:
         store.close()
     print(f"Applied {schema_path}")
     return 0
+
+
+def _sync_divisions(client: ExactClient, all_divisions: bool) -> list[int]:
+    if not all_divisions:
+        return [client.division]
+    rows = client.divisions()
+    codes = [int(row["Code"]) for row in rows if row.get("Code") is not None]
+    return codes or [client.division]
 
 
 def _divisions(client: ExactClient) -> int:

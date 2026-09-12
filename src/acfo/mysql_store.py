@@ -196,29 +196,31 @@ class MySQLStore:
                 cursor.execute(statement)
         connection.commit()
 
-    def last_timestamp(self, entity: str) -> int:
+    def last_timestamp(self, entity: str, division: int) -> int:
         connection = self.connect()
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT last_timestamp FROM sync_state WHERE entity = %s",
-                (entity,),
+                "SELECT last_timestamp FROM sync_state WHERE entity = %s AND division = %s",
+                (entity, division),
             )
             row = cursor.fetchone()
         return int(row["last_timestamp"]) if row else 0
 
-    def set_timestamp(self, entity: str, timestamp: int, error: str | None = None) -> None:
+    def set_timestamp(
+        self, entity: str, timestamp: int, division: int, error: str | None = None
+    ) -> None:
         connection = self.connect()
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO sync_state (entity, last_timestamp, last_sync_at, last_error)
-                VALUES (%s, %s, UTC_TIMESTAMP(), %s)
+                INSERT INTO sync_state (entity, division, last_timestamp, last_sync_at, last_error)
+                VALUES (%s, %s, %s, UTC_TIMESTAMP(), %s)
                 ON DUPLICATE KEY UPDATE
                     last_timestamp = VALUES(last_timestamp),
                     last_sync_at = VALUES(last_sync_at),
                     last_error = VALUES(last_error)
                 """,
-                (entity, int(timestamp), error),
+                (entity, division, int(timestamp), error),
             )
         connection.commit()
 

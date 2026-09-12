@@ -4,6 +4,39 @@ Download **Exact Online** financial transactions (grootboekmutaties) into **MySQ
 
 Exact Online does not expose a MySQL dump. The supported way to get an exact copy of posted transactions is the REST API: OAuth 2.0, then the **Sync** `TransactionLines` endpoint, then upsert into your own database.
 
+## Coming from Invantive
+
+Invantive Cloud / Data Hub / Query Tool did not talk to MySQL either. It ran SQL against Exact’s REST APIs and (optionally) wrote a replica to SQL Server.
+
+The table you likely used:
+
+| Invantive | What it actually is | In this repo |
+| --- | --- | --- |
+| `ExactOnlineREST.Incremental.TransactionLinesIncremental` | Sync mutations + deletes, cached as a current replica | MySQL view `transaction_lines_incremental` |
+| `ExactOnlineREST.Sync.SyncTransactionLines` | Raw `GET …/sync/Financial/TransactionLines` | `python -m acfo sync` upsert into `transaction_lines` |
+| `ExactOnlineREST.Sync.SyncDeleted` | Raw `GET …/sync/Deleted` | `deleted_entities` + `deleted_at` on the line |
+| `ExactOnlineREST.FinancialTransaction.TransactionLines` / `*Bulk` | Slow 60-row or Bulk 1000-row GET | Only used for a first `--from-date` load if SyncTimestamp is missing |
+| `BankEntries` / `BankEntryLines` | Bank journals only; expensive | Filter `type = 40` on the incremental view |
+
+`acfo sync` is the same pattern as the Invantive scripts that **MERGE SyncTransactionLines into SQL Server** (not `CREATE TABLE AS SELECT * FROM TransactionLinesIncremental`). That full rebuild is fast on the API side and slow when millions of rows are rewritten. This tool upserts by `ID`, deletes via `EntityKey` (not the Deleted row’s own `ID`), and stores a `Timestamp` per **division**.
+
+```sql
+-- old Invantive
+select * from ExactOnlineREST.Incremental.TransactionLinesIncremental
+
+-- MySQL after acfo sync
+select * from transaction_lines_incremental
+```
+
+Same pitfalls Invantive already documented:
+
+- `LineNumber = 0` is the booking header; the splits are the other lines.
+- Do not pull `BankEntryLines` for reporting if `TransactionLines` already has the bank journal.
+- After the first run, only rows with a higher `Timestamp` are fetched (typically two Exact calls: lines + deletes).
+- Multiple administraties: `python -m acfo sync --all-divisions` loops divisions the way Invantive does.
+
+If you still have an Invantive Data Hub job, you can retire it once `acfo sync` is on a cron/systemd timer.
+
 ## Recommended path
 
 | Step | What | Why |
@@ -41,7 +74,7 @@ Official index: [REST API resources](https://start.exactonline.nl/docs/HlpRestAP
 3. `sync` — incremental Sync + Deleted → MySQL
 4. `divisions` — list administrations the token can access
 
-`transaction_lines` stores the Sync payload as posted in Exact (amounts, VAT, journal, GL account, relation, period, type). Bank bookings, sales, purchase, and memorial entries are all transaction lines; filter on `type` or `journal_code`. Type `40` is cash flow / bank.
+`transaction_lines` stores the Sync payload as posted in Exact (amounts, VAT, journal, GL account, relation, period, type). Query `transaction_lines_incremental` for the live replica (deleted rows removed). Bank bookings, sales, purchase, and memorial entries are all transaction lines; filter on `type` or `journal_code`. Type `40` is cash flow / bank.
 
 ## Setup
 
@@ -80,6 +113,12 @@ Full resync:
 python -m acfo sync --full
 ```
 
+All divisions the token can access (Invantive-style):
+
+```bash
+python -m acfo sync --all-divisions
+```
+
 Schedule `python -m acfo sync` hourly or daily. After the first run it only fetches new/changed rows.
 
 Example reporting SQL is in `sql/example_queries.sql`.
@@ -89,7 +128,7 @@ Example reporting SQL is in `sql/example_queries.sql`.
 If you only need a warehouse and not this repo:
 
 - Exact Online → Excel/CSV export (manual, not incremental)
-- [Invantive Cloud / Data Hub](https://forums.invantive.com/) SQL over Exact
+- [Invantive Cloud / Data Hub](https://forums.invantive.com/) SQL over Exact (what this repo replaces for MySQL)
 - Hosted ELT (Peliqan, Airbyte-style connectors)
 
 Those still use the same APIs underneath. This project is the self-hosted MySQL version.

@@ -55,8 +55,9 @@ def sync_transactions(
     continue incrementally from Sync.
     """
     result = SyncResult()
-    line_ts = 0 if full else store.last_timestamp(ENTITY_TRANSACTION_LINES)
-    deleted_ts = 0 if full else store.last_timestamp(ENTITY_DELETED)
+    division = client.division
+    line_ts = 0 if full else store.last_timestamp(ENTITY_TRANSACTION_LINES, division)
+    deleted_ts = 0 if full else store.last_timestamp(ENTITY_DELETED, division)
 
     if from_date is not None and line_ts == 0:
         start_ts = client.sync_timestamp_for_modified(from_date)
@@ -73,14 +74,14 @@ def sync_transactions(
                 if progress:
                     progress(f"Bulk upserted {result.upserted} lines")
             if result.last_line_timestamp:
-                store.set_timestamp(ENTITY_TRANSACTION_LINES, result.last_line_timestamp)
+                store.set_timestamp(ENTITY_TRANSACTION_LINES, result.last_line_timestamp, division)
 
     if progress:
         progress(f"Syncing transaction lines after Timestamp {line_ts}")
     for batch in _chunks(client.sync_transaction_lines(line_ts), batch_size):
         result.upserted += store.upsert_transaction_lines(batch)
         result.last_line_timestamp = _max_timestamp(batch, result.last_line_timestamp)
-        store.set_timestamp(ENTITY_TRANSACTION_LINES, result.last_line_timestamp)
+        store.set_timestamp(ENTITY_TRANSACTION_LINES, result.last_line_timestamp, division)
         if progress:
             progress(f"Upserted {result.upserted} lines (timestamp {result.last_line_timestamp})")
 
@@ -92,7 +93,7 @@ def sync_transactions(
     for batch in _chunks(client.sync_deleted_transaction_lines(deleted_ts), batch_size):
         result.deleted += store.apply_deletions(batch)
         result.last_deleted_timestamp = _max_timestamp(batch, result.last_deleted_timestamp)
-        store.set_timestamp(ENTITY_DELETED, result.last_deleted_timestamp)
+        store.set_timestamp(ENTITY_DELETED, result.last_deleted_timestamp, division)
         if progress:
             progress(f"Applied {result.deleted} deletions")
 

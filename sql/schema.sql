@@ -1,6 +1,8 @@
 -- Exact Online financial transaction lines (grootboekmutaties).
+-- Same feed Invantive calls SyncTransactionLines / TransactionLinesIncremental.
 -- Source: GET /api/v1/{division}/sync/Financial/TransactionLines
--- Deletions: GET /api/v1/{division}/sync/Deleted (EntityType = 1)
+-- Deletions: GET /api/v1/{division}/sync/Deleted
+-- LineNumber 0 is the booking header; other lines are the split.
 
 CREATE TABLE IF NOT EXISTS transaction_lines (
     id CHAR(36) NOT NULL,
@@ -71,7 +73,7 @@ CREATE TABLE IF NOT EXISTS transaction_lines (
 CREATE TABLE IF NOT EXISTS deleted_entities (
     id CHAR(36) NOT NULL,
     division INT NULL,
-    entity_type INT NULL,
+    entity_type VARCHAR(64) NULL,
     entity_key CHAR(36) NOT NULL,
     timestamp BIGINT NOT NULL,
     deleted_date DATETIME NULL,
@@ -83,8 +85,15 @@ CREATE TABLE IF NOT EXISTS deleted_entities (
 
 CREATE TABLE IF NOT EXISTS sync_state (
     entity VARCHAR(64) NOT NULL,
+    division INT NOT NULL,
     last_timestamp BIGINT NOT NULL,
     last_sync_at DATETIME NOT NULL,
     last_error TEXT NULL,
-    PRIMARY KEY (entity)
+    PRIMARY KEY (entity, division)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Invantive Incremental replica: current rows only (deletes already applied).
+CREATE OR REPLACE VIEW transaction_lines_incremental AS
+SELECT *
+FROM transaction_lines
+WHERE deleted_at IS NULL;
