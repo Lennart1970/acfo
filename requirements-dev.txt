@@ -1,0 +1,2 @@
+-r acfo/requirements.txt
+pytest

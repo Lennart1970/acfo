@@ -1,0 +1,486 @@
+"""Parse an Exact purchase export (.xlsx) into booking entries. No network."""
+from __future__ import annotations
+
+import re
+from collections import Counter, defaultdict
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
+from openpyxl import load_workbook
+
+WEEKDAY_NL = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"]
+MONTH_NL = [
+    "",
+    "januari",
+    "februari",
+    "maart",
+    "april",
+    "mei",
+    "juni",
+    "juli",
+    "augustus",
+    "september",
+    "oktober",
+    "november",
+    "december",
+]
+
+ALIASES = {
+    "entryDate": (
+        "datum",
+        "boekstukdatum",
+        "boekdatum",
+        "entrydate",
+        "date",
+        "invoicedate",
+        "factuurdatum",
+        "transactiedatum",
+        "financialyearperiod",
+    ),
+    "entryNumber": (
+        "boekstuk",
+        "boekstuknummer",
+        "boekstuknr",
+        "entrynumber",
+        "entry",
+        "entryno",
+        "nummer",
+        "document",
+        "yourref",
+    ),
+    "supplierName": (
+        "leverancier",
+        "relatie",
+        "relatienaam",
+        "accountname",
+        "account",
+        "supplier",
+        "suppliername",
+        "crediteur",
+        "naam",
+    ),
+    "amountDC": (
+        "bedrag",
+        "bedragdc",
+        "amountdc",
+        "amount",
+        "totaal",
+        "amountfc",
+        "bedragfc",
+    ),
+    "currency": ("valuta", "currency", "munteenheid"),
+    "vatCode": ("btwcode", "btw", "vatcode", "vat", "btwcode"),
+    "glAccountCode": (
+        "grootboek",
+        "grootboekrekening",
+        "glaccount",
+        "glaccountcode",
+        "rekening",
+        "rekeningcode",
+    ),
+    "journalCode": ("journaal", "dagboek", "journal", "journalcode", "dagboekcode"),
+    "paymentCondition": (
+        "betalingsconditie",
+        "paymentcondition",
+        "payment",
+        "betaalconditie",
+    ),
+    "description": ("omschrijving", "description", "omschr", "tekst", "referentie"),
+    "division": ("administratie", "division", "administrationcode", "divisie"),
+    "lineNumber": ("regel", "linenumber", "lineno", "regelnummer"),
+}
+
+SKIP_SHEETS = {"overzicht", "overview", "readme"}
+
+
+def norm_header(value) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+
+def _alias_lookup() -> dict[str, str]:
+    out = {}
+    for field, names in ALIASES.items():
+        for name in names:
+            out[name] = field
+    return out
+
+
+_ALIAS = _alias_lookup()
+
+
+def parse_number(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace("€", "").replace("EUR", "").strip()
+    if not text:
+        return None
+    if "," in text and "." in text:
+        if text.rfind(",") > text.rfind("."):
+            text = text.replace(".", "").replace(",", ".")
+        else:
+            text = text.replace(",", "")
+    elif "," in text:
+        text = text.replace(".", "").replace(",", ".")
+    text = re.sub(r"[^0-9.\-]", "", text)
+    if text in {"", "-", "."}:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def parse_day(value) -> str | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            from openpyxl.utils.datetime import from_excel
+
+            return from_excel(value).date().isoformat()
+        except Exception:
+            return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text[:10]):
+        return text[:10]
+    for fmt in ("%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y", "%Y/%m/%d", "%d-%m-%y"):
+        try:
+            return datetime.strptime(text[:10], fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def iso_week_id(day: date | str) -> str:
+    d = day if isinstance(day, date) else date.fromisoformat(str(day)[:10])
+    y, w, _ = d.isocalendar()
+    return f"{y}-W{w:02d}"
+
+
+def week_bounds(week: str) -> tuple[date, date]:
+    parsed = parse_week(week)
+    return parsed["start"], parsed["end"]
+
+
+def parse_week(value: str, *, today: date | None = None) -> dict:
+    """Accept 2026-W37, week 37, 37-2026, or a date that falls in that week."""
+    today = today or date.today()
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError("week is empty")
+
+    iso = re.fullmatch(r"(?:iso\s*)?(\d{4})[-.\s]?[wW](\d{1,2})", text)
+    if iso:
+        year, week = int(iso.group(1)), int(iso.group(2))
+        return _week_from_iso(year, week)
+
+    labeled = re.fullmatch(r"(?:week|wk)\s*(\d{1,2})(?:\s*(?:van|of)?\s*(\d{4}))?", text, re.I)
+    labeled_nl = re.fullmatch(r"(\d{1,2})\s*[-/]\s*(\d{4})", text)
+    if labeled:
+        week = int(labeled.group(1))
+        year = int(labeled.group(2) or today.year)
+        return _week_from_iso(year, week)
+    if labeled_nl:
+        week, year = int(labeled_nl.group(1)), int(labeled_nl.group(2))
+        if week > 53:
+            year, week = week, year
+        return _week_from_iso(year, week)
+
+    day = parse_day(text)
+    if day:
+        d = date.fromisoformat(day)
+        return _week_from_iso(d.isocalendar().year, d.isocalendar().week)
+
+    raise ValueError(f"cannot parse week: {value!r}")
+
+
+def _week_from_iso(year: int, week: int) -> dict:
+    if week < 1 or week > 53:
+        raise ValueError(f"ISO week out of range: {week}")
+    start = date.fromisocalendar(year, week, 1)
+    end = start + timedelta(days=6)
+    week_id = f"{start.isocalendar().year}-W{start.isocalendar().week:02d}"
+    return {
+        "week": week_id,
+        "start": start,
+        "end": end,
+        "label": week_label(start, end),
+    }
+
+
+def week_label(start: date, end: date) -> str:
+    y, w, _ = start.isocalendar()
+    if start.month == end.month:
+        span = f"{start.day}–{end.day} {MONTH_NL[start.month]} {start.year}"
+    else:
+        span = (
+            f"{start.day} {MONTH_NL[start.month]} – {end.day} {MONTH_NL[end.month]} {end.year}"
+        )
+    return f"week {w} ({span})"
+
+
+def format_nl_date(day: str | date) -> str:
+    d = day if isinstance(day, date) else date.fromisoformat(str(day)[:10])
+    return f"{WEEKDAY_NL[d.weekday()]} {d.day} {MONTH_NL[d.month]} {d.year}"
+
+
+def _sheet_rows(ws) -> list[list]:
+    return [list(row) for row in ws.iter_rows(values_only=True)]
+
+
+def _header_score(row) -> int:
+    return sum(1 for cell in row if _ALIAS.get(norm_header(cell)))
+
+
+def detect_header(rows: list[list]) -> tuple[int, dict[int, str]]:
+    best_i, best_score, best_map = 0, 0, {}
+    scan = rows[:12] if len(rows) > 12 else rows
+    for i, row in enumerate(scan):
+        mapping = {}
+        for col, cell in enumerate(row):
+            field = _ALIAS.get(norm_header(cell))
+            if field and field not in mapping.values():
+                mapping[col] = field
+        score = len(mapping)
+        if "entryDate" in mapping.values():
+            score += 2
+        if score > best_score:
+            best_i, best_score, best_map = i, score, mapping
+    if best_score < 2 or "entryDate" not in best_map.values():
+        raise ValueError(
+            "Excel has no Exact transaction header (need at least a date column "
+            "plus boekstuk/leverancier/bedrag)"
+        )
+    return best_i, best_map
+
+
+def _preferred_sheets(wb) -> list:
+    named = []
+    rest = []
+    prefer = {
+        "boekingen",
+        "transacties",
+        "transactionlines",
+        "inkoop",
+        "purchases",
+        "export",
+        "blad1",
+        "sheet1",
+    }
+    for ws in wb.worksheets:
+        title = norm_header(ws.title)
+        if title in SKIP_SHEETS:
+            continue
+        (named if title in prefer else rest).append(ws)
+    return named + rest or list(wb.worksheets)
+
+
+def _row_to_record(row, mapping: dict[int, str]) -> dict:
+    rec = {field: None for field in ALIASES}
+    for col, field in mapping.items():
+        if col < len(row):
+            rec[field] = row[col]
+    rec["entryDate"] = parse_day(rec.get("entryDate"))
+    rec["amountDC"] = parse_number(rec.get("amountDC"))
+    rec["entryNumber"] = str(rec.get("entryNumber") or "").strip()
+    rec["supplierName"] = str(rec.get("supplierName") or "").strip()
+    rec["currency"] = str(rec.get("currency") or "").strip()
+    rec["vatCode"] = str(rec.get("vatCode") or "").strip()
+    rec["glAccountCode"] = str(rec.get("glAccountCode") or "").strip()
+    rec["journalCode"] = str(rec.get("journalCode") or "").strip()
+    rec["paymentCondition"] = str(rec.get("paymentCondition") or "").strip()
+    rec["description"] = str(rec.get("description") or "").strip()
+    rec["division"] = str(rec.get("division") or "").strip()
+    rec["lineNumber"] = rec.get("lineNumber")
+    return rec
+
+
+def _group_key(rec: dict, index: int) -> str:
+    if rec["entryNumber"]:
+        return rec["entryNumber"]
+    supplier = rec["supplierName"] or "?"
+    day = rec["entryDate"] or "?"
+    amount = rec["amountDC"] if rec["amountDC"] is not None else "?"
+    return f"{day}|{supplier}|{amount}|{index}"
+
+
+def _header_from_lines(entry_number: str, lines: list[dict]) -> dict:
+    first = lines[0]
+    amounts = [ln["amountDC"] for ln in lines if ln.get("amountDC") is not None]
+    if len(lines) > 1 and amounts:
+        # Line export: sum unique line amounts. Header-only dumps repeat the
+        # same document total on every line — do not sum those.
+        unique = {round(a, 2) for a in amounts}
+        amount = sum(amounts) if len(unique) > 1 else amounts[0]
+    else:
+        amount = amounts[0] if amounts else None
+    descriptions = [ln["description"] for ln in lines if ln.get("description")]
+    return {
+        "entryNumber": entry_number,
+        "entryDate": first.get("entryDate"),
+        "supplierName": first.get("supplierName") or "",
+        "amountDC": amount,
+        "currency": first.get("currency") or "",
+        "paymentCondition": first.get("paymentCondition") or "",
+        "description": descriptions[0] if descriptions else "",
+        "journalCode": first.get("journalCode") or "",
+        "journal": first.get("journalCode") or "",
+        "division": first.get("division") or "",
+        "vatCode": first.get("vatCode") or "",
+    }
+
+
+def _as_line(rec: dict) -> dict:
+    return {
+        "glAccountCode": rec.get("glAccountCode") or "",
+        "vatCode": rec.get("vatCode") or "",
+        "amountDC": rec.get("amountDC"),
+        "description": rec.get("description") or "",
+    }
+
+
+def load_entries(path: str | Path) -> dict:
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    wb = load_workbook(path, data_only=True, read_only=True)
+    last_error = None
+    records = []
+    source_sheet = ""
+    for ws in _preferred_sheets(wb):
+        rows = _sheet_rows(ws)
+        if not rows:
+            continue
+        try:
+            header_i, mapping = detect_header(rows)
+        except ValueError as exc:
+            last_error = exc
+            continue
+        source_sheet = ws.title
+        for offset, row in enumerate(rows[header_i + 1 :]):
+            if not any(cell not in (None, "") for cell in row):
+                continue
+            rec = _row_to_record(row, mapping)
+            if not rec["entryDate"] and rec["amountDC"] is None and not rec["supplierName"]:
+                continue
+            rec["_index"] = offset
+            records.append(rec)
+        if records:
+            break
+    wb.close()
+    if not records:
+        raise last_error or ValueError(f"no transaction rows in {path.name}")
+
+    grouped: dict[str, list[dict]] = defaultdict(list)
+    for rec in records:
+        grouped[_group_key(rec, rec["_index"])].append(rec)
+
+    entries = []
+    for key, recs in grouped.items():
+        recs = sorted(recs, key=lambda r: (str(r.get("lineNumber") or ""), r["_index"]))
+        header = _header_from_lines(recs[0]["entryNumber"] or key, recs)
+        if not header["entryDate"]:
+            continue
+        entries.append(
+            {
+                "entry": header,
+                "lines": [_as_line(r) for r in recs],
+            }
+        )
+    entries.sort(key=lambda e: (e["entry"]["entryDate"] or "", e["entry"]["entryNumber"] or ""))
+    divisions = [e["entry"]["division"] for e in entries if e["entry"].get("division")]
+    admin = Counter(divisions).most_common(1)[0][0] if divisions else ""
+    return {
+        "source": str(path),
+        "sourceName": path.name,
+        "sheet": source_sheet,
+        "administrationCode": admin,
+        "entries": entries,
+        "rowCount": len(records),
+    }
+
+
+def list_weeks(bundle: dict) -> list[dict]:
+    buckets: dict[str, list] = defaultdict(list)
+    for item in bundle["entries"]:
+        day = item["entry"].get("entryDate")
+        if not day:
+            continue
+        buckets[iso_week_id(day)].append(item)
+    weeks = []
+    for week_id, items in sorted(buckets.items()):
+        start, end = week_bounds(week_id)
+        weeks.append(
+            {
+                "week": week_id,
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "label": week_label(start, end),
+                "entries": len(items),
+            }
+        )
+    return weeks
+
+
+def entries_in_week(bundle: dict, week: str) -> tuple[dict, list[dict]]:
+    meta = parse_week(week)
+    start, end = meta["start"], meta["end"]
+    matched = []
+    for item in bundle["entries"]:
+        day = item["entry"].get("entryDate")
+        if not day:
+            continue
+        d = date.fromisoformat(day)
+        if start <= d <= end:
+            matched.append(item)
+    return meta, matched
+
+
+def _supplier_key(name: str) -> str:
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def build_cases(bundle: dict, week_entries: list[dict]) -> list[dict]:
+    """History comes from other rows in the same uploaded workbook."""
+    by_supplier: dict[str, list[dict]] = defaultdict(list)
+    for item in bundle["entries"]:
+        by_supplier[_supplier_key(item["entry"].get("supplierName"))].append(item)
+
+    cases = []
+    for item in week_entries:
+        entry = item["entry"]
+        current_no = str(entry.get("entryNumber") or "")
+        current_day = entry.get("entryDate") or ""
+        peers = [
+            p
+            for p in by_supplier[_supplier_key(entry.get("supplierName"))]
+            if str(p["entry"].get("entryNumber") or "") != current_no
+            or (not current_no and p is not item)
+        ]
+        peers.sort(key=lambda p: (p["entry"].get("entryDate") or "", p["entry"].get("entryNumber") or ""))
+        prior = [p for p in peers if (p["entry"].get("entryDate") or "") <= current_day]
+        history_src = prior if prior else peers
+        history = [p["entry"] for p in history_src]
+        recent = history_src[-3:]
+        history_lines = [line for p in recent for line in p.get("lines") or []]
+        supplier = (entry.get("supplierName") or "").strip()
+        cases.append(
+            {
+                "entry": entry,
+                "lines": item.get("lines") or [],
+                "history": history,
+                "history_lines": history_lines,
+                "accounts_count": 1 if supplier else 0,
+            }
+        )
+    return cases
