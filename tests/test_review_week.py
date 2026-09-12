@@ -118,13 +118,14 @@ def test_weeks_payload_does_not_score(nl_export: Path):
     assert payload["entries_in_file"] == 9
 
 
-def test_anthropic_zip_layout():
+def test_copilot_zip_layout_matches_dagoverzicht():
     root = Path(__file__).resolve().parents[1]
     zpath = root / "acfo" / "copilot-skills" / "booking-weekoverzicht.zip"
     names = ZipFile(zpath).namelist()
-    assert "booking-weekoverzicht/SKILL.md" in names
-    assert "booking-weekoverzicht/scripts/review_week.py" in names
-    assert "SKILL.md" not in names
+    assert "SKILL.md" in names
+    assert "scripts/review_week.py" in names
+    assert "booking-weekoverzicht/SKILL.md" not in names
+    assert not any(name.endswith(".xlsx") for name in names)
 
 
 def test_inspect_invantive_before_read(invantive_export: Path):

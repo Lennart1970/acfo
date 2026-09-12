@@ -1,13 +1,12 @@
 ---
 name: booking-weekoverzicht
 description: >
-  Exact-inkoopboekingen reviewen vanuit een geüpload Excel-bestand (v2).
-  Gebruiker uploadt Exact-transacties. Eerst blad/kolommen inspecteren
-  (Invantive TransactionLines), dan weken tonen, dan vragen welke week.
-  Python scoort met Booking Confidence. Gebruik bij "review deze Excel",
+  Exact-inkoopboekingen van één week uit een geüploade Excel: weekoverzicht
+  en Booking Confidence via sandbox-Python. Gebruik bij "review deze Excel",
   "welke week", "weekoverzicht inkoop", "gmr-eol-transaction-lines",
-  "Human Review". Geen LedgerBotje. Geen Exact-schrijven. Score draait in
-  scripts/review_week.py, niet in het model.
+  "Human Review". Gebruiker uploadt Exact-transacties. Python inspecteert
+  bladen, vraagt de week, scoort en schrijft .xlsx. Geen LedgerBotje.
+  Geen Exact-schrijven. Score draait in scripts/review_week.py, niet in het model.
 ---
 
 # Booking check v2 — Excel-upload, weekreview
@@ -128,6 +127,8 @@ Eerste boeking van een leverancier in het bestand heeft geen geschiedenis → me
 Exact wijzigen, crediteur aanmaken, LedgerBotje/`financial_purchase_*` aanroepen, 122 tools verkennen, GL/btw/bedrag uit het hoofd schatten, scoren terwijl `parse.ok` false is.
 
 ## Bestanden in deze zip
+
+Zip-root (zelfde layout als `booking-dagoverzicht`; Copilot weigert een extra map eromheen):
 
 - `SKILL.md` — deze instructie
 - `scripts/confidence_core.py` — signaalwiskunde (geen netwerk)

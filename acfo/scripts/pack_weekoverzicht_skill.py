@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Package booking-weekoverzicht in Anthropic Agent Skills zip layout."""
+"""Package booking-weekoverzicht as a Copilot Studio skill zip.
+
+Copilot accepts the same layout as booking-dagoverzicht.zip:
+SKILL.md and scripts/ at the archive root. A nested
+booking-weekoverzicht/ folder makes the upload fail validation
+(SKILL.md is not found at the zip root). Do not include fixtures.
+"""
 from __future__ import annotations
 
 import re
@@ -11,15 +17,12 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = Path(__file__).resolve().parent
 SKILL = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht"
 ZIP_PATH = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht.zip"
-SKILL_PATH = ROOT / "acfo" / "copilot-skills" / "booking-weekoverzicht.skill"
 FILES = (
     "confidence_core.py",
     "excel_transactions.py",
     "write_weekoverzicht.py",
     "review_week.py",
 )
-EXCLUDE_DIRS = {"__pycache__", "node_modules"}
-EXCLUDE_FILES = {".DS_Store"}
 
 
 def validate_skill(skill_path: Path) -> None:
@@ -37,8 +40,11 @@ def validate_skill(skill_path: Path) -> None:
         raise ValueError(f"invalid skill name: {name!r}")
     if len(name) > 64:
         raise ValueError("name longer than 64 characters")
+    extra = set(fields) - {"name", "description"}
+    if extra:
+        raise ValueError(f"unsupported frontmatter keys: {sorted(extra)}")
     body = match.group(1)
-    desc_match = re.search(r"description:\s*>\s*(.*)$", body, re.DOTALL)
+    desc_match = re.search(r"description:\s*>-?\s*(.*)$", body, re.DOTALL)
     description = " ".join(desc_match.group(1).split()) if desc_match else fields.get("description", "")
     if not description:
         raise ValueError("missing description")
@@ -53,27 +59,23 @@ def main() -> int:
     dest.mkdir(parents=True, exist_ok=True)
     for name in FILES:
         shutil.copy2(SCRIPTS / name, dest / name)
-    fixture = SKILL / "fixtures" / "exact-inkoop-sample.xlsx"
-    import sys
-
-    sys.path.insert(0, str(ROOT / "tests"))
-    from exact_fixtures import write_nl_export
-
-    write_nl_export(fixture)
     validate_skill(SKILL)
     ZIP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    include = [SKILL / "SKILL.md"]
+    include.extend(dest / name for name in FILES)
     with zipfile.ZipFile(ZIP_PATH, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path in sorted(SKILL.rglob("*")):
-            if not path.is_file():
-                continue
-            if any(part in EXCLUDE_DIRS for part in path.parts):
-                continue
-            if path.name in EXCLUDE_FILES or path.name.endswith(".pyc"):
-                continue
-            # Anthropic layout: skill-name/SKILL.md inside the archive
-            zf.write(path, path.relative_to(SKILL.parent))
-    shutil.copy2(ZIP_PATH, SKILL_PATH)
-    print(f"packed {ZIP_PATH}")
+        for path in include:
+            zf.write(path, path.relative_to(SKILL).as_posix())
+    names = zipfile.ZipFile(ZIP_PATH).namelist()
+    if names[0] != "SKILL.md" and "SKILL.md" not in names:
+        raise ValueError("zip must have SKILL.md at archive root (Copilot Studio)")
+    if "SKILL.md" not in names:
+        raise ValueError("zip must have SKILL.md at archive root (Copilot Studio)")
+    if any(name == "booking-weekoverzicht/SKILL.md" or name.startswith("booking-weekoverzicht/") for name in names):
+        raise ValueError("do not nest files under booking-weekoverzicht/")
+    if any(name.endswith(".xlsx") for name in names):
+        raise ValueError("do not pack Excel fixtures into the skill zip")
+    print(f"packed {ZIP_PATH} ({', '.join(names)})")
     return 0
 
 
