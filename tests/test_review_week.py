@@ -6,6 +6,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from zipfile import ZipFile
+
 from confidence_core import score_case
 from excel_transactions import (
     apply_scope,
@@ -114,6 +116,15 @@ def test_weeks_payload_does_not_score(nl_export: Path):
     payload = weeks_payload(load_entries(nl_export))
     assert "results" not in payload
     assert payload["entries_in_file"] == 9
+
+
+def test_anthropic_zip_layout():
+    root = Path(__file__).resolve().parents[1]
+    zpath = root / "acfo" / "copilot-skills" / "booking-weekoverzicht.zip"
+    names = ZipFile(zpath).namelist()
+    assert "booking-weekoverzicht/SKILL.md" in names
+    assert "booking-weekoverzicht/scripts/review_week.py" in names
+    assert "SKILL.md" not in names
 
 
 def test_inspect_invantive_before_read(invantive_export: Path):
