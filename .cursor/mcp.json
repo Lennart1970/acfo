@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "powerplatform": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "powerplatform-mcp-server@1.10.1"],
+      "env": {
+        "PATH": "/home/ubuntu/.nvm/versions/node/v22.22.2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      }
+    }
+  }
+}
