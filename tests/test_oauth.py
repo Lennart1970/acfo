@@ -16,6 +16,7 @@ def _settings(tmp_path: Path) -> Settings:
         base_url="https://start.exactonline.nl",
         division=123,
         token_file=tmp_path / "tokens.json",
+        database_url=None,
         mysql_host="127.0.0.1",
         mysql_port=3306,
         mysql_user="acfo",

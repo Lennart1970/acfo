@@ -28,11 +28,16 @@ class Settings:
     base_url: str
     division: int | None
     token_file: Path
+    database_url: str | None
     mysql_host: str
     mysql_port: int
     mysql_user: str
     mysql_password: str
     mysql_database: str
+
+    @property
+    def uses_postgres(self) -> bool:
+        return bool(self.database_url)
 
 
 def load_settings(env_file: str | Path | None = None) -> Settings:
@@ -50,6 +55,7 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
         base_url=REGIONS[region],
         division=int(division_raw) if division_raw else None,
         token_file=Path(os.getenv("EXACT_TOKEN_FILE", ".tokens.json")),
+        database_url=os.getenv("DATABASE_URL", "").strip() or None,
         mysql_host=os.getenv("MYSQL_HOST", "127.0.0.1"),
         mysql_port=int(os.getenv("MYSQL_PORT", "3306")),
         mysql_user=os.getenv("MYSQL_USER", "acfo"),

@@ -1,5 +1,6 @@
 .env
 .tokens.json
+supabase/.temp/
 .venv/
 venv/
 __pycache__/

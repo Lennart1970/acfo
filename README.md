@@ -1,10 +1,17 @@
 # acfo
 
-Download **Exact Online** financial transactions (grootboekmutaties) into **MySQL**.
+MVP: **Cursor** builds Exact Online sync → **Railway** cron runs it → **Supabase** holds entries and Microsoft **work orders**. Copilot comes later via those work orders.
 
-Exact Online does not expose a MySQL dump. You either let **Invantive Data Hub** copy `TransactionLinesIncremental` into a database, or you call Exact’s Sync API yourself (`python -m acfo`).
+Intent: [docs/intent.md](docs/intent.md) · Railway: [docs/railway.md](docs/railway.md) · Work orders: [work-orders/](work-orders/README.md)
 
-If the goal is **Microsoft Copilot agents**, do not use MySQL. Replica in **Azure SQL** (via Invantive), then Copilot Studio knowledge. **Supabase** works as the Postgres replica and as a Copilot *tool* (PostgREST), not as native Studio knowledge. See [docs/copilot.md](docs/copilot.md).
+```bash
+export DATABASE_URL='postgresql://postgres.<ref>:<pw>@…pooler.supabase.com:5432/postgres'
+python -m acfo init-db
+python -m acfo auth
+python -m acfo sync
+```
+
+Exact Online has no dump. Invantive Data Hub can still load Incremental tables if you prefer that over `acfo`. Copilot should not query Exact live. See [docs/copilot.md](docs/copilot.md).
 
 ## Invantive is the better alternative (if you have a license)
 
@@ -31,7 +38,7 @@ The table you likely used:
 
 | Invantive | What it actually is | In this repo |
 | --- | --- | --- |
-| `ExactOnlineREST.Incremental.TransactionLinesIncremental` | Sync mutations + deletes, cached as a current replica | MySQL view `transaction_lines_incremental` |
+| `ExactOnlineREST.Incremental.TransactionLinesIncremental` | Sync mutations + deletes, cached as a current replica | Supabase view `transaction_lines_incremental` |
 | `ExactOnlineREST.Sync.SyncTransactionLines` | Raw `GET …/sync/Financial/TransactionLines` | `python -m acfo sync` upsert into `transaction_lines` |
 | `ExactOnlineREST.Sync.SyncDeleted` | Raw `GET …/sync/Deleted` | `deleted_entities` + `deleted_at` on the line |
 | `ExactOnlineREST.FinancialTransaction.TransactionLines` / `*Bulk` | Slow 60-row or Bulk 1000-row GET | Only used for a first `--from-date` load if SyncTimestamp is missing |

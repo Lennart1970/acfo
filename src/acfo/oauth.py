@@ -7,7 +7,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
@@ -28,6 +28,11 @@ class TokenSet:
     @property
     def expired(self) -> bool:
         return time.time() >= self.expires_at - 30
+
+
+class TokenBackend(Protocol):
+    def load(self) -> TokenSet | None: ...
+    def save(self, tokens: TokenSet) -> None: ...
 
 
 class TokenStore:
@@ -55,10 +60,15 @@ class TokenStore:
 
 
 class ExactOAuth:
-    def __init__(self, settings: Settings, session: requests.Session | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        session: requests.Session | None = None,
+        store: TokenBackend | None = None,
+    ) -> None:
         self.settings = settings
         self.session = session or requests.Session()
-        self.store = TokenStore(settings.token_file)
+        self.store = store or TokenStore(settings.token_file)
 
     def authorization_url(self, force_login: bool = False) -> str:
         params = {

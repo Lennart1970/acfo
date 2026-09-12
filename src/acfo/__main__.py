@@ -7,16 +7,17 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from acfo.config import load_settings
+from acfo.backend import open_oauth, open_store
+from acfo.config import Settings, load_settings
 from acfo.exact_client import ExactClient
-from acfo.mysql_store import MySQLStore
 from acfo.oauth import ExactOAuth, OAuthError
+from acfo.pg_store import apply_supabase_migrations
 from acfo.sync import sync_transactions
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Download Exact Online financial transactions into MySQL."
+        description="Download Exact Online financial transactions into Supabase or MySQL."
     )
     parser.add_argument("--env-file", default=None, help="Optional .env path")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -41,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     settings = load_settings(args.env_file)
-    oauth = ExactOAuth(settings)
+    oauth = open_oauth(settings)
 
     if args.command == "auth":
         return _auth(oauth, args)
@@ -52,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         return _divisions(client)
     if args.command == "sync":
         from_date = date.fromisoformat(args.from_date) if args.from_date else None
-        store = MySQLStore(settings)
+        store = open_store(settings)
         try:
             divisions = _sync_divisions(client, args.all_divisions)
             totals = []
@@ -102,20 +103,22 @@ def _auth(oauth: ExactOAuth, args: argparse.Namespace) -> int:
     return 0
 
 
-def _schema_path() -> Path:
-    candidates = [
-        Path(__file__).resolve().parents[2] / "sql" / "schema.sql",
-        Path.cwd() / "sql" / "schema.sql",
-    ]
-    for path in candidates:
-        if path.exists():
-            return path
-    raise FileNotFoundError("sql/schema.sql not found; run from the repo root or keep sql/ next to the package.")
+def _repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "supabase" / "migrations").exists() or (parent / "sql" / "schema.sql").exists():
+            return parent
+    return Path.cwd()
 
 
-def _init_db(settings) -> int:
-    schema_path = _schema_path()
-    store = MySQLStore(settings)
+def _init_db(settings: Settings) -> int:
+    root = _repo_root()
+    if settings.uses_postgres:
+        applied = apply_supabase_migrations(settings.database_url or "", root / "supabase" / "migrations")
+        print("Applied " + ", ".join(applied))
+        return 0
+    schema_path = root / "sql" / "schema.sql"
+    store = open_store(settings)
     try:
         store.apply_schema(schema_path.read_text(encoding="utf-8"))
     finally:

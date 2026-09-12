@@ -39,6 +39,7 @@ def _client(tmp_path: Path, session: _FakeSession) -> ExactClient:
         base_url="https://start.exactonline.nl",
         division=555,
         token_file=tmp_path / "tokens.json",
+        database_url=None,
         mysql_host="127.0.0.1",
         mysql_port=3306,
         mysql_user="acfo",
