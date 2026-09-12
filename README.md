@@ -1,10 +1,10 @@
 # aCFO
 
-Workspace voor aCFO booking-check skills. **v2** reviewt Exact-inkoopboekingen vanuit een geüpload Excel-bestand (geen Exact-API).
+Workspace voor aCFO booking-check skills. Beide Copilot-zips hebben `SKILL.md` in de zip-root (geen extra map eromheen).
 
 ## v2 — weekoverzicht uit Excel-upload
 
-Skill: [`acfo/copilot-skills/booking-weekoverzicht-v2/`](acfo/copilot-skills/booking-weekoverzicht-v2/). Upload [`booking-weekoverzicht-v2.zip`](acfo/copilot-skills/booking-weekoverzicht-v2.zip) in Copilot Studio (zelfde layout als `booking-dagoverzicht.zip`: `SKILL.md` in de zip-root).
+Skill: [`acfo/copilot-skills/booking-weekoverzicht-v2/`](acfo/copilot-skills/booking-weekoverzicht-v2/). Upload [`booking-weekoverzicht-v2.zip`](acfo/copilot-skills/booking-weekoverzicht-v2.zip) in Copilot Studio.
 
 Flow:
 
@@ -29,6 +29,6 @@ pip install -r requirements-dev.txt
 python3 -m pytest
 ```
 
-## v1 (referentie)
+## v1 — dagoverzicht via LedgerBotje
 
-v1 (`booking-dagoverzicht`) haalt JSON via LedgerBotje en filtert op één datum. Die skill staat op branch `cursor/copilot-excel-mvp-bc25`.
+Skill: [`acfo/copilot-skills/booking-dagoverzicht/`](acfo/copilot-skills/booking-dagoverzicht/). Upload [`booking-dagoverzicht.zip`](acfo/copilot-skills/booking-dagoverzicht.zip). Haalt JSON via LedgerBotje en filtert op één datum.
