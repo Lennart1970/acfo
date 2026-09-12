@@ -11,6 +11,7 @@ from excel_transactions import (
     apply_scope,
     build_cases,
     entries_in_week,
+    inspect_workbook,
     list_weeks,
     load_entries,
     parse_number,
@@ -115,8 +116,21 @@ def test_weeks_payload_does_not_score(nl_export: Path):
     assert payload["entries_in_file"] == 9
 
 
+def test_inspect_invantive_before_read(invantive_export: Path):
+    info = inspect_workbook(invantive_export)
+    assert info["ready"] is True
+    assert info["chosenSheet"] == "TransactionLines"
+    assert info["mapped"]["entryNumber"] == "Boekingnummer"
+    assert info["mapped"]["supplierName"] == "Accountnaam"
+    assert info["mapped"]["amountDC"] == "Bedrag Administratie Munteenheid"
+    code = main(["--input", str(invantive_export), "--inspect", "--json"])
+    assert code == 0
+
+
 def test_invantive_purchase_lines(invantive_export: Path):
     raw = load_entries(invantive_export)
+    assert raw["parse"]["ok"] is True
+    assert raw["mappedHeaders"]["entryNumber"] == "Boekingnummer"
     assert {e["entry"]["entryNumber"] for e in raw["entries"]} == {"26400300", "26400387", "26200210"}
     scoped = apply_scope(raw, "auto")
     assert scoped["scope"] == "purchases"

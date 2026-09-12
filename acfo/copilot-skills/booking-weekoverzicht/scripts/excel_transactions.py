@@ -416,6 +416,136 @@ def is_purchase_journal(entry: dict) -> bool:
     return any(hint in desc for hint in PURCHASE_JOURNAL_HINTS)
 
 
+REQUIRED_FIELDS = ("entryDate", "entryNumber", "supplierName", "amountDC")
+
+
+def parse_report(
+    entries: list[dict],
+    records: list[dict],
+    mapped_fields: list[str],
+    mapped_headers: dict[str, str],
+    sheet: str,
+) -> dict:
+    fallback = [
+        e
+        for e in entries
+        if "|" in str(e["entry"].get("entryNumber") or "")
+    ]
+    missing_supplier = sum(1 for e in entries if not (e["entry"].get("supplierName") or "").strip())
+    missing_amount = sum(1 for e in entries if e["entry"].get("amountDC") is None)
+    warnings = []
+    if sheet and norm_header(sheet) == "parameters":
+        warnings.append("gelezen blad is Parameters — data staat op TransactionLines")
+    missing_map = [f for f in REQUIRED_FIELDS if f not in mapped_fields]
+    if missing_map:
+        warnings.append(
+            "kolom-mapping mist "
+            + ", ".join(missing_map)
+            + " (Invantive: Boekingnummer, Accountnaam, Bedrag Administratie Munteenheid)"
+        )
+    if fallback:
+        warnings.append(
+            f"{len(fallback)} boekstukken hebben een fallback-sleutel (datum|?|?|index): "
+            "Boekingnummer is niet gemapt — niet scoren"
+        )
+    if entries and missing_amount > len(entries) * 0.3:
+        warnings.append(
+            "veel lege bedragen: map 'Bedrag Administratie Munteenheid'; "
+            "som alle regels niet (debet+credit ≈ 0)"
+        )
+    if entries and missing_supplier > len(entries) * 0.3:
+        warnings.append("veel lege leveranciers: map 'Accountnaam', niet 'Naam Abonnementhouder'")
+    notes = []
+    if records and entries and len(records) > len(entries) * 2:
+        notes.append(
+            f"{len(records)} regels → {len(entries)} boekstukken (groepering op Boekingnummer)"
+        )
+    ok = not any("niet scoren" in w or "mapping mist" in w for w in warnings)
+    sample = [
+        {
+            "entryNumber": e["entry"].get("entryNumber"),
+            "supplierName": e["entry"].get("supplierName"),
+            "amountDC": e["entry"].get("amountDC"),
+            "journalCode": e["entry"].get("journalCode"),
+        }
+        for e in entries[:3]
+    ]
+    return {
+        "ok": ok,
+        "sheet": sheet,
+        "mappedHeaders": mapped_headers,
+        "lineCount": len(records),
+        "bookingCount": len(entries),
+        "fallbackKeys": len(fallback),
+        "missingSupplier": missing_supplier,
+        "missingAmount": missing_amount,
+        "warnings": warnings,
+        "notes": notes,
+        "sample": sample,
+    }
+
+
+def inspect_workbook(path: str | Path) -> dict:
+    """Sheets + header mapping. Run this before asking which week."""
+    path = Path(path)
+    wb = load_workbook(path, data_only=True, read_only=True)
+    sheets = []
+    for ws in wb.worksheets:
+        title = ws.title
+        skip = norm_header(title) in SKIP_SHEETS
+        rows = _sheet_rows(ws)
+        info = {
+            "name": title,
+            "skip": skip,
+            "rows": len(rows),
+            "role": "parameters" if skip else "candidate",
+        }
+        if skip or not rows:
+            sheets.append(info)
+            continue
+        try:
+            header_i, mapping = detect_header(rows)
+        except ValueError as exc:
+            info["readable"] = False
+            info["error"] = str(exc)
+            sheets.append(info)
+            continue
+        header_row = rows[header_i]
+        mapped = {
+            field: str(header_row[col])
+            for col, field in mapping.items()
+            if col < len(header_row)
+        }
+        info.update(
+            {
+                "readable": True,
+                "headerRow": header_i + 1,
+                "mapped": mapped,
+                "missingRequired": [f for f in REQUIRED_FIELDS if f not in mapping.values()],
+            }
+        )
+        sheets.append(info)
+    wb.close()
+    chosen = next((s for s in sheets if s.get("readable") and not s.get("skip")), None)
+    hints = [
+        "sla Parameters over",
+        "data: blad TransactionLines",
+        "Boekingnummer → boekstuk (niet Factuurnummer / Rij ID)",
+        "Accountnaam → leverancier (niet Naam Abonnementhouder)",
+        "Bedrag Administratie Munteenheid → bedrag (niet alle regels sommeren)",
+        "inkoop = dagboek 40/41",
+    ]
+    return {
+        "source": str(path),
+        "sourceName": path.name,
+        "sheets": sheets,
+        "chosenSheet": (chosen or {}).get("name"),
+        "mapped": (chosen or {}).get("mapped") or {},
+        "ready": bool(chosen) and not (chosen or {}).get("missingRequired"),
+        "hints": hints,
+    }
+
+
 def apply_scope(bundle: dict, scope: str = "auto") -> dict:
     entries = list(bundle.get("entries") or [])
     purchases = [item for item in entries if is_purchase_journal(item["entry"])]
@@ -438,6 +568,8 @@ def load_entries(path: str | Path) -> dict:
     last_error = None
     records = []
     source_sheet = ""
+    mapped_fields: list[str] = []
+    mapped_headers: dict[str, str] = {}
     for ws in _preferred_sheets(wb):
         rows = _sheet_rows(ws)
         if not rows:
@@ -448,6 +580,12 @@ def load_entries(path: str | Path) -> dict:
             last_error = exc
             continue
         source_sheet = ws.title
+        mapped_fields = sorted(mapping.values())
+        mapped_headers = {
+            field: str(rows[header_i][col])
+            for col, field in mapping.items()
+            if col < len(rows[header_i])
+        }
         for offset, row in enumerate(rows[header_i + 1 :]):
             if not any(cell not in (None, "") for cell in row):
                 continue
@@ -481,6 +619,7 @@ def load_entries(path: str | Path) -> dict:
     entries.sort(key=lambda e: (e["entry"]["entryDate"] or "", e["entry"]["entryNumber"] or ""))
     divisions = [e["entry"]["division"] for e in entries if e["entry"].get("division")]
     admin = Counter(divisions).most_common(1)[0][0] if divisions else ""
+    parse = parse_report(entries, records, mapped_fields, mapped_headers, source_sheet)
     return {
         "source": str(path),
         "sourceName": path.name,
@@ -488,6 +627,9 @@ def load_entries(path: str | Path) -> dict:
         "administrationCode": admin,
         "entries": entries,
         "rowCount": len(records),
+        "mappedFields": mapped_fields,
+        "mappedHeaders": mapped_headers,
+        "parse": parse,
     }
 
 

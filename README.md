@@ -15,6 +15,7 @@ Flow:
 
 ```bash
 pip install -r acfo/requirements.txt
+python3 acfo/scripts/review_week.py --input exact-inkoop.xlsx --inspect --json
 python3 acfo/scripts/review_week.py --input exact-inkoop.xlsx --json
 python3 acfo/scripts/review_week.py --input exact-inkoop.xlsx --week 2026-W37 --output Weekoverzicht-2026-W37.xlsx --json
 ```

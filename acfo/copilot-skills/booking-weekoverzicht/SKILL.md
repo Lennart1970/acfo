@@ -2,23 +2,19 @@
 name: booking-weekoverzicht
 description: >
   Exact-inkoopboekingen reviewen vanuit een geüpload Excel-bestand (v2).
-  Gebruiker uploadt Exact-transacties. Agent vraagt welke week. Python scoort
-  met Booking Confidence en schrijft weekoverzicht + uitkomst per transactie.
-  Gebruik bij "review deze Excel", "welke week", "weekoverzicht inkoop",
-  "check week 37", "Human Review". Geen LedgerBotje. Geen Exact-schrijven.
-  Score draait in scripts/review_week.py, niet in het model.
+  Gebruiker uploadt Exact-transacties. Eerst blad/kolommen inspecteren
+  (Invantive TransactionLines), dan weken tonen, dan vragen welke week.
+  Python scoort met Booking Confidence. Gebruik bij "review deze Excel",
+  "welke week", "weekoverzicht inkoop", "gmr-eol-transaction-lines",
+  "Human Review". Geen LedgerBotje. Geen Exact-schrijven. Score draait in
+  scripts/review_week.py, niet in het model.
 ---
 
 # Booking check v2 — Excel-upload, weekreview
 
 Opvolger van `booking-dagoverzicht`. Geen Exact-API. Geen LedgerBotje.
 
-Patroon: **gebruiker levert Excel, skill-Python = logica, Excel = resultaat.**
-
-1. Gebruiker uploadt een Exact-inkoopexport (`.xlsx`).
-2. Agent vraagt **welke week** (ISO, ma–zo).
-3. Python filtert die week, scoort elke boeking tegen de rest van het bestand, schrijft `.xlsx`.
-4. Agent geeft weekoverzicht + uitkomst per transactie. Cijfers komen uit Python, niet uit het model.
+Patroon: **eerst Excel leesbaar maken, dan week vragen, dan Python-score.**
 
 Het model mag GL/btw/bedrag **niet** zelf verzinnen of nalopen.
 
@@ -30,45 +26,88 @@ Vraag om een Exact-export van inkoopboekingen of transactieregels. Zonder bestan
 
 Geen Exact-tools, geen `financial_purchase_search`, geen 122-tools-lus.
 
-### 2. Vraag welke week
+### 2. Maak de Excel leesbaar (vóór je een week vraagt)
 
-Eerst weken tonen. **Niet** zelf een week kiezen, ook niet als er maar één week in het bestand zit.
+Invantive `gmr-eol-transaction-lines.xlsx` is geen simpele daglijst. Eerste blad is **Parameters** (module + gebruiker), de rijen staan op **TransactionLines** (~70 kolommen, dubbel boekhouden). Zonder onderstaande stappen worden boekstukken `2026-06-01|?|?|12`, leverancier/bedrag leeg, en alles Human Review.
+
+**2a. Inspecteer bladen en mapping**
+
+```bash
+python3 scripts/review_week.py --input "$UPLOAD" --inspect --json
+```
+
+Controleer:
+
+1. Sla blad **Parameters** over. Data = **TransactionLines** (of Inkoop/Boekingen).
+2. `mapped` moet minstens `entryDate`, `entryNumber`, `supplierName`, `amountDC` hebben.
+3. `ready` is true. Zo niet: headers van TransactionLines printen, niet scoren.
+
+**Invantive-kolommen (niet raden, dit zijn de namen):**
+
+| Nodig voor | Kolom in Excel | Niet gebruiken |
+|---|---|---|
+| Datum | `Datum` | `Gemaakt`, `Gewijzigd`, `Vervaldag` |
+| Boekstuk | `Boekingnummer` | `Factuurnummer`, `Rij ID`, `Uw Referentie` |
+| Leverancier | `Accountnaam` | `Naam Abonnementhouder`, `Administratie Naam` |
+| Bedrag | `Bedrag Administratie Munteenheid` | som van alle regels, `Bedrag Vreemde Valuta` |
+| Grootboek | `Grootboekrekening Code` | `Grootboekrekening Omschrijving` |
+| Btw | `BTW-code` | `BTW-bedrag…` |
+| Dagboek | `Dagboekcode` / `Dagboekomschrijving` | — |
+| Regel | `Regelnummer` | — |
+| Administratie | `Divisie` | — |
+
+**2b. Leesregels (anders is het bestand “gelezen” maar fout)**
+
+- Groepeer op **Boekingnummer**. Elke regel is geen boekstuk (354 regels in week 23 ≠ 32 inkoopboekingen).
+- Dubbel boekhouden: debet + credit ≈ 0. **Factuurbedrag = abs(crediteurenregel)** (GB `1300`, soort `22`), niet de som van alle regels.
+- Score-GL/btw komt van de **kostenregel** (soort 110/120/…, regel ≥ 1), niet van 1300 of btw-regel `9999` / GB `1450`.
+- Standaard alleen inkoopdagboek **40** (Purchases) en **41** (Purchases via MOSS). Dit bestand bevat ook 20/21/23 bank, 30 sales, 90 memoriaal, 91 payroll, 92 assets, 93 deferred sales & costs. Die horen niet in de inkoopreview tenzij de gebruiker `--scope all` vraagt.
+
+**2c. Eerste parse-run, daarna pas week vragen**
 
 ```bash
 python3 scripts/review_week.py --input "$UPLOAD" --json
 ```
 
-Exitcode **3** + JSON met `needs_week: true` en `weeks[]` (`week`, `label`, `start`, `end`, `entries`).
+Exitcode **3**. Lees `parse`:
+
+- `ok: true` en `sample[].entryNumber` lijkt op Exact (`26400387`), met leverancier en bedrag → ga naar stap 3.
+- `ok: false`, fallback-sleutels `datum|?|?|index`, of `amountDC` / `supplierName` leeg → headers inspecteren, mapping fixen, **niet scoren**.
+
+### 3. Vraag welke week
+
+Eerst weken tonen. **Niet** zelf een week kiezen, ook niet als er maar één week in het bestand zit.
+
+JSON: `needs_week: true` en `weeks[]` (`week`, `label`, `start`, `end`, `entries`).
 
 Vraag in het Nederlands, bijvoorbeeld:
 
-> Welke week wil je reviewen? In dit bestand staan: week 36 (1–7 september 2026, 8 boekingen), week 37 (8–14 september 2026, 12 boekingen).
+> Welke week wil je reviewen? In dit bestand staan: week 23 (1–7 juni 2026, 32 inkoopboekingen), week 24 (8–14 juni 2026, 30 boekingen).
 
-Gebruiker mag antwoorden met `2026-W37`, `week 37`, of een datum in die week (`12 september`).
+Gebruiker mag antwoorden met `2026-W37`, `week 37`, `eerste week`, of een datum in die week.
 
-### 3. Review die week (één Python-run)
+### 4. Review die week (één Python-run)
+
+Alleen als `parse.ok` true is. Exitcode **4** = mapping onvolledig, stop.
 
 ```bash
-python3 scripts/review_week.py --input "$UPLOAD" --week 2026-W37 --output Weekoverzicht-2026-W37.xlsx --json
+python3 scripts/review_week.py --input "$UPLOAD" --week 2026-W23 --output Weekoverzicht-2026-W23.xlsx --json
 ```
 
 `--week` accepteert `2026-W37`, `week 37`, `37-2026`, of `2026-09-12`.
 
-Python doet intern:
+Python daarna:
 
-- parse Exact-kolommen (NL/EN én Invantive TransactionLines: Datum, Boekingnummer, Accountnaam, Bedrag Administratie Munteenheid, Grootboekrekening Code, BTW-code, …)
-- groepeert regels tot boekstukken (`Boekingnummer`); bij dubbel boekhouden is het factuurbedrag de crediteurenregel, niet de som van alle regels
-- standaard alleen inkoopdagboeken **40 / 41** (Purchases) als die in het bestand zitten (`--scope auto`)
 - filtert de gekozen ISO-week
-- per boeking: geschiedenis = **andere rijen in hetzelfde bestand** voor dezelfde leverancier (max. 3 recente voor grootboek/btw-regels)
-- `accounts_count` = 1 als de leveranciersnaam gevuld is (Excel-v2, geen `accounts_search`)
+- per boeking: geschiedenis = **andere inkoopboekingen in hetzelfde bestand** voor dezelfde leverancier (max. 3 recente voor grootboek/btw-regels)
+- `accounts_count` = 1 als de leveranciersnaam gevuld is (geen `accounts_search`)
 - dezelfde signaalwiskunde als v1 (`confidence_core.py`)
 
 Niet in het model nalopen. Niet Exact of Dataverse schrijven.
 
-### 4. Antwoord (Nederlands)
+### 5. Antwoord (Nederlands)
 
-1. Week, periode, administratie (uit Excel), aantal boekingen in die week.
+1. Week, periode, administratie (uit Excel), aantal boekingen in die week, scope (inkoop 40/41).
 2. Counts **Auto / AI Review / Human Review**.
 3. **Uitkomst per transactie:** boekstuk, leverancier, bedrag, route, confidence, afwijkende signalen.
 4. Het `.xlsx` (bladen Overzicht, Boekingen, Uitkomsten).
@@ -86,7 +125,7 @@ Eerste boeking van een leverancier in het bestand heeft geen geschiedenis → me
 
 ## Weigeren
 
-Exact wijzigen, crediteur aanmaken, LedgerBotje/`financial_purchase_*` aanroepen, 122 tools verkennen, GL/btw/bedrag uit het hoofd schatten.
+Exact wijzigen, crediteur aanmaken, LedgerBotje/`financial_purchase_*` aanroepen, 122 tools verkennen, GL/btw/bedrag uit het hoofd schatten, scoren terwijl `parse.ok` false is.
 
 ## Bestanden in deze zip
 
@@ -94,4 +133,4 @@ Exact wijzigen, crediteur aanmaken, LedgerBotje/`financial_purchase_*` aanroepen
 - `scripts/confidence_core.py` — signaalwiskunde (geen netwerk)
 - `scripts/excel_transactions.py` — Exact-Excel lezen, weken, cases
 - `scripts/write_weekoverzicht.py` — week-Excel
-- `scripts/review_week.py` — CLI (eerst weken, daarna score)
+- `scripts/review_week.py` — CLI (`--inspect`, daarna weken, daarna score)

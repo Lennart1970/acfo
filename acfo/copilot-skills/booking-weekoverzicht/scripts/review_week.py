@@ -10,7 +10,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from confidence_core import DEFAULT_CONFIG, score_case
-from excel_transactions import apply_scope, build_cases, entries_in_week, list_weeks, load_entries
+from excel_transactions import (
+    apply_scope,
+    build_cases,
+    entries_in_week,
+    inspect_workbook,
+    list_weeks,
+    load_entries,
+)
 from write_weekoverzicht import outcome_text, scored_row, write_xlsx
 
 
@@ -25,6 +32,7 @@ def weeks_payload(bundle: dict) -> dict:
         "scope": bundle.get("scope") or "auto",
         "entries_in_file": bundle.get("entries_unfiltered", len(bundle.get("entries") or [])),
         "entries_in_scope": len(bundle.get("entries") or []),
+        "parse": bundle.get("parse") or {},
         "weeks": weeks,
     }
 
@@ -70,6 +78,7 @@ def review_week(bundle: dict, week: str, config=None) -> dict:
         "results": results,
         "rows": rows,
         "weeks": list_weeks(bundle),
+        "parse": bundle.get("parse") or {},
     }
 
 
@@ -91,17 +100,33 @@ def parse_args(argv=None):
         help="auto: inkoopdagboek 40/41 when present, else all journals",
     )
     p.add_argument("--json", action="store_true")
+    p.add_argument(
+        "--inspect",
+        action="store_true",
+        help="list sheets and column mapping; do not ask week or score",
+    )
     return p.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.inspect:
+        json.dump(inspect_workbook(args.input), sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+        return 0
     bundle = apply_scope(load_entries(args.input), args.scope)
+    parse = bundle.get("parse") or {}
     if not args.week:
         payload = weeks_payload(bundle)
         json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
         sys.stdout.write("\n")
         return 3
+    if parse.get("ok") is False:
+        payload = weeks_payload(bundle)
+        payload["error"] = "Excel-mapping onvolledig; headers inspecteren, niet scoren"
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+        return 4
     summary = review_week(bundle, args.week, DEFAULT_CONFIG)
     out = (
         Path(args.output)
