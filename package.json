@@ -1,0 +1,10 @@
+{
+  "name": "acfo",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix hq",
+    "build": "npm run build --prefix hq",
+    "start": "npm run start --prefix hq",
+    "test": "npm test --prefix hq"
+  }
+}

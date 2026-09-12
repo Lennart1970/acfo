@@ -1,0 +1,24 @@
+{
+  "display_information": {
+    "name": "ACFO HQ",
+    "description": "Hand aCFO jobs to Slack, Grok, and Cursor Cloud Agents",
+    "background_color": "#1f6b45"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "ACFO HQ",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "redirect_urls": ["http://localhost:3000/api/slack/callback"],
+    "scopes": {
+      "bot": ["channels:manage", "channels:read", "chat:write", "users:read"]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
