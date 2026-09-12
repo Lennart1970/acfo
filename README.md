@@ -2,11 +2,28 @@
 
 Download **Exact Online** financial transactions (grootboekmutaties) into **MySQL**.
 
-Exact Online does not expose a MySQL dump. The supported way to get an exact copy of posted transactions is the REST API: OAuth 2.0, then the **Sync** `TransactionLines` endpoint, then upsert into your own database.
+Exact Online does not expose a MySQL dump. You either let **Invantive Data Hub** copy `TransactionLinesIncremental` into MySQL, or you call Exact’s Sync API yourself (`python -m acfo`).
 
-## Coming from Invantive
+## Invantive is the better alternative (if you have a license)
 
-Invantive Cloud / Data Hub / Query Tool did not talk to MySQL either. It ran SQL against Exact’s REST APIs and (optionally) wrote a replica to SQL Server.
+Invantive already does this job. `TransactionLinesIncremental` is Exact Sync + Deleted, cached. Data Hub can write that replica straight to MySQL:
+
+```sql
+use all@eol
+
+create or replace table transaction_lines_incremental@mysql
+as
+select *
+from   ExactOnlineREST.Incremental.TransactionLinesIncremental@eol
+```
+
+That is the path to use if you still have Query Tool / Data Hub / Office Premium. Playbook, `settings-*.xml`, and scheduled SQL are in [`invantive/`](invantive/README.md).
+
+Office for Entrepreneurs (~€59) is enough for Power BI over Exact. An **on-prem MySQL** replica needs **Data Hub** (Office Premium ~€119, or a Data Hub subscription). Data Replicator is only for large warehouses.
+
+This Python CLI is the fallback when you do not want that seat: same Sync/Deleted/Timestamp logic, OAuth operated by you.
+
+## Coming from Invantive (mapping to `acfo`)
 
 The table you likely used:
 
@@ -35,7 +52,7 @@ Same pitfalls Invantive already documented:
 - After the first run, only rows with a higher `Timestamp` are fetched (typically two Exact calls: lines + deletes).
 - Multiple administraties: `python -m acfo sync --all-divisions` loops divisions the way Invantive does.
 
-If you still have an Invantive Data Hub job, you can retire it once `acfo sync` is on a cron/systemd timer.
+If you keep Invantive, you do not need `acfo`. If you drop Invantive, put `acfo sync` on cron instead.
 
 ## Recommended path
 
@@ -123,15 +140,11 @@ Schedule `python -m acfo sync` hourly or daily. After the first run it only fetc
 
 Example reporting SQL is in `sql/example_queries.sql`.
 
-## Alternatives (no code)
+## Alternatives (no Python)
 
-If you only need a warehouse and not this repo:
-
+- **Invantive Data Hub → MySQL** (recommended if licensed): [`invantive/`](invantive/README.md)
 - Exact Online → Excel/CSV export (manual, not incremental)
-- [Invantive Cloud / Data Hub](https://forums.invantive.com/) SQL over Exact (what this repo replaces for MySQL)
 - Hosted ELT (Peliqan, Airbyte-style connectors)
-
-Those still use the same APIs underneath. This project is the self-hosted MySQL version.
 
 ## Tests
 
