@@ -1,8 +1,6 @@
-# aCFO agent colony — lanes
+# MS agent-swarm colony — lanes
 
-This repository is an **agent colony** for developing and deploying swarms of agents in the Microsoft environment (Power Platform, Copilot Studio, Azure) around Exact Online as the financial system of record.
-
-North star (Project context): **Exact = System of Record**, **Dataverse = System of Work**, progressive hands-free accounting — Observe → Measure → Assist → Automate → Learn → Expand.
+This tree is an **agent colony** for developing and deploying **swarms of agents in the Microsoft environment** (Azure, Entra ID, Power Platform, Copilot Studio, Dataverse, related MCP/tooling). Product or client work may consume the colony; the lanes themselves stay **general**.
 
 ## Colony rules
 
@@ -16,7 +14,7 @@ North star (Project context): **Exact = System of Record**, **Dataverse = System
    Append an entry with **agent id** and **date** (UTC). Summarize what changed, what is blocked, and what the next agent should know. Do not rewrite history; append.
 
 4. **GitHub issues and PRs with lane labels are the coordination interface.**  
-   Use labels matching lane folders (for example `lane:1-agent-design`). Discuss and assign work on issues/PRs — not in private chats that leave no trail.
+   Use labels matching lane folders (for example `lane:2-agent-design`). Discuss and assign work on issues/PRs — not in private chats that leave no trail.
 
 5. **A PR that touches several lanes updates each affected lane’s `STATUS.md`.**  
    Cross-cutting changes still leave a STATUS trail in every lane whose specialism was exercised.
@@ -24,28 +22,30 @@ North star (Project context): **Exact = System of Record**, **Dataverse = System
 6. **Only Lennart merges.**  
    Agents open PRs; they do not merge to `main`.
 
-7. **No secrets, tenant ids, credentials, or client data in the repo.**  
-   Use `.env.example` / connection placeholders only. Never commit tokens, Exact secrets, Supabase keys, Railway keys, Entra client secrets, ledger API keys, division/tenant identifiers that identify a live client, or accounting extracts with client data.
+7. **No secrets, tenant ids, credentials, or client/product data in the colony docs.**  
+   Use placeholders and public architecture only. Never commit tokens, client secrets, environment URLs that identify a live tenant, or extracts with customer data.
 
 ## Lanes
 
 | Lane | Job (one line) |
 | --- | --- |
-| [1-agent-design](1-agent-design/) | Design Copilot Studio / Cursor agent behaviour and closed operational loops |
-| [2-connectors-apis](2-connectors-apis/) | Exact, LedgerBotje MCP, ledger HTTP, Power Platform connectors and MCP wiring |
-| [3-data](3-data/) | Exact SoR, Supabase replica, Dataverse SoW schema and migrations |
-| [4-alm-deployment](4-alm-deployment/) | Railway, Invantive/sync deploy, solution packaging and environment promotion |
-| [5-security-governance](5-security-governance/) | AuthZ boundaries, RLS, read-only paths, secret hygiene, segregation of duties |
-| [6-evaluation](6-evaluation/) | Booking confidence, metrics, override learning, human-touch measures |
+| [1-platform-development](1-platform-development/) | Document and evolve the MS technical platform: stack, architecture, environments, how pieces fit |
+| [2-agent-design](2-agent-design/) | Design Copilot Studio / Cursor agent behaviour and swarm operational loops |
+| [3-connectors-apis](3-connectors-apis/) | Connectors, HTTP APIs, MCP wiring, and tool contracts into Microsoft and adjacent systems |
+| [4-data](4-data/) | Dataverse / SQL schemas, migrations, system-of-record vs system-of-work boundaries |
+| [5-alm-deployment](5-alm-deployment/) | Solution packaging, environment promotion, hosting and scheduled runbooks |
+| [6-security-governance](6-security-governance/) | AuthZ boundaries, secret hygiene, RLS, approval gates, segregation of duties |
+| [7-evaluation](7-evaluation/) | Scoring, KPIs, override learning, evidence that automation is earned |
+| [8-training](8-training/) | Training material for people who build and use these agent swarms |
 
 ## Lane folder contract
 
 Each lane has exactly:
 
 - `INITIATING.md` — one job, voice, anti-jobs
-- `FEATURES.md` — tools, skills, connectors, and what this lane can do *today* in acfo
+- `FEATURES.md` — surfaces and capabilities this lane owns *in the general colony*
 - `STATUS.md` — append-only current state
 
 ## Suggested GitHub labels
 
-Create (once) labels: `lane:1-agent-design`, `lane:2-connectors-apis`, `lane:3-data`, `lane:4-alm-deployment`, `lane:5-security-governance`, `lane:6-evaluation`.
+Create (once) labels: `lane:1-platform-development`, `lane:2-agent-design`, `lane:3-connectors-apis`, `lane:4-data`, `lane:5-alm-deployment`, `lane:6-security-governance`, `lane:7-evaluation`, `lane:8-training`.
